@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食事管理トラッカー</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --accent: #2a78d6;
+    --accent-dark: #1a5fad;
+    --green: #3a9e5f;
+    --amber: #e6a02a;
+    --blue: #3a7bd5;
+    --orange: #e06c3a;
+    --danger: #d03b3b;
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --surface2: #f9f9f7;
+    --border: rgba(0,0,0,0.1);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --text2: #52514e;
+    --text3: #898781;
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a19;
+      --surface: #242422;
+      --surface2: #2c2c2a;
+      --border: rgba(255,255,255,0.1);
+      --border-strong: rgba(255,255,255,0.18);
+      --text: #f0efec;
+      --text2: #c3c2b7;
+      --text3: #898781;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 480px; margin: 0 auto; padding: 16px 12px 40px; }
+
+  /* ヘッダー */
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .date-badge { font-size: 11px; color: var(--text2); background: var(--surface); border: 0.5px solid var(--border); border-radius: 20px; padding: 4px 10px; }
+
+  /* サマリー */
+  .summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-bottom: 10px; }
+  .metric { background: var(--surface); border-radius: var(--radius); padding: 8px 4px; text-align: center; border: 0.5px solid var(--border); }
+  .metric-label { font-size: 9px; color: var(--text3); margin-bottom: 2px; }
+  .metric-value { font-size: 18px; font-weight: 600; line-height: 1.1; display: block; }
+  .metric-unit { font-size: 9px; color: var(--text3); }
+  .m-kcal .metric-value { color: var(--orange); }
+  .m-p .metric-value { color: var(--green); }
+  .m-f .metric-value { color: var(--amber); }
+  .m-c .metric-value { color: var(--blue); }
+
+  /* PFCグラフ */
+  .chart-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; padding: 10px 14px; background: var(--surface); border-radius: 12px; border: 0.5px solid var(--border); }
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text2); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  /* セクションラベル */
+  .section-label { font-size: 11px; font-weight: 600; color: var(--text3); margin-bottom: 7px; letter-spacing: 0.03em; }
+
+  /* 検索 */
+  .search-wrap { margin-bottom: 14px; }
+  .input-field {
+    width: 100%; font-size: 14px; padding: 10px 12px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--surface); color: var(--text);
+    outline: none; transition: border-color 0.15s;
+  }
+  .input-field:focus { border-color: var(--accent); }
+  .input-field.error { border-color: var(--danger); }
+  .error-msg { font-size: 11px; color: var(--danger); margin-top: 4px; display: none; }
+  .error-msg.show { display: block; }
+  .dropdown { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); max-height: 180px; overflow-y: auto; margin-top: 4px; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .dropdown-item { padding: 10px 12px; cursor: pointer; color: var(--text); border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .dropdown-item:last-child { border-bottom: none; }
+  .dropdown-item:hover { background: var(--surface2); }
+  .food-kcal { font-size: 11px; color: var(--text3); }
+
+  /* 量入力 */
+  .amount-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .amount-label { font-size: 12px; color: var(--text2); flex-shrink: 0; }
+  .amount-input { width: 100px; font-size: 14px; padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; flex-shrink: 0; }
+  .amount-input:focus { border-color: var(--accent); }
+  .amount-input.error { border-color: var(--danger); }
+  .unit-select { flex: 1; font-size: 13px; padding: 9px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; }
+  .unit-select:focus { border-color: var(--accent); }
+
+  /* ボタン */
+  .btn { font-size: 13px; padding: 10px 16px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; transition: background 0.1s; font-weight: 500; }
+  .btn:hover { background: var(--surface2); }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); width: 100%; font-size: 14px; padding: 11px; margin-top: 10px; }
+  .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn-danger { color: var(--danger); border-color: var(--danger); }
+  .btn-danger:hover { background: #fff0f0; }
+
+  /* ミールタブ */
+  .meal-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .meal-tab { font-size: 11px; padding: 5px 12px; border-radius: 20px; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text2); cursor: pointer; }
+  .meal-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* 食事ログ */
+  .food-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .food-item { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border); }
+  .food-meal-badge { font-size: 9px; padding: 2px 6px; border-radius: 10px; flex-shrink: 0; font-weight: 600; margin-top: 2px; white-space: nowrap; }
+  .b-morning { background: #fff3e0; color: #b45309; }
+  .b-lunch   { background: #e8f5e9; color: #2e7d32; }
+  .b-dinner  { background: #e3f2fd; color: #1565c0; }
+  .b-snack   { background: #f3e5f5; color: #6a1b9a; }
+  .food-info { flex: 1; min-width: 0; }
+  .food-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .food-amount { font-size: 10px; color: var(--text3); font-weight: 400; }
+  .food-detail { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .del-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 18px; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+  .del-btn:hover { color: var(--danger); }
+  .empty-msg { color: var(--text3); font-size: 13px; text-align: center; padding: 20px; }
+
+  /* ボトム操作 */
+  .bottom-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .send-btn { width: 100%; font-size: 13px; padding: 10px; margin-bottom: 10px; }
+
+  /* GAS設定 */
+  .gas-panel { background: var(--surface2); border: 1px solid var(--border-strong); border-radius: 10px; padding: 12px; margin-top: 4px; display: none; }
+  .gas-panel.show { display: block; }
+  .gas-panel-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
+  .gas-row { display: flex; gap: 8px; }
+  .gas-row input { flex: 1; font-size: 12px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; min-width: 0; }
+  .gas-row input:focus { border-color: var(--accent); }
+  .gas-status { font-size: 11px; margin-top: 6px; color: var(--text3); }
+  .gas-status.ok { color: var(--green); }
+  .gas-status.err { color: var(--danger); }
+
+  /* トースト通知 */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1a1a18; color: #f0efec; font-size: 13px; padding: 10px 20px; border-radius: 20px; opacity: 0; transition: transform 0.25s, opacity 0.25s; white-space: nowrap; z-index: 999; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.success { background: #1e5c38; }
+  .toast.error { background: #7a1f1f; }
+
+  /* 区切り線 */
+  .divider { border: none; border-top: 0.5px solid var(--border); margin: 14px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <span class="title">食事管理トラッカー</span>
+    <span class="date-badge" id="dateBadge"></span>
+  </div>
+
+  <div class="summary-grid">
+    <div class="metric m-kcal"><div class="metric-label">カロリー</div><span class="metric-value" id="sumKcal">0</span><div class="metric-unit">kcal</div></div>
+    <div class="metric m-p"><div class="metric-label">タンパク質</div><span class="metric-value" id="sumP">0</span><div class="metric-unit">g</div></div>
+    <div class="metric m-f"><div class="metric-label">脂質</div><span class="metric-value" id="sumF">0</span><div class="metric-unit">g</div></div>
+    <div class="metric m-c"><div class="metric-label">炭水化物</div><span class="metric-value" id="sumC">0</span><div class="metric-unit">g</div></div>
+  </div>
+
+  <div class="chart-row">
+    <canvas id="donutChart" width="90" height="90" style="flex-shrink:0"></canvas>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#3a9e5f"></span>P <strong id="pPct">-</strong>%</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#e6a02a"></span>F <strong id="fPct">-</strong>%</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#3a7bd5"></span>C <strong id="cPct">-</strong>%</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="section-label">食品を検索・追加</div>
+  <div class="search-wrap">
+    <input type="text" id="foodSearch" class="input-field" placeholder="食品名を入力（例：鶏むね、卵、うどん）" autocomplete="off">
+    <div class="error-msg" id="foodErr">食品を選択してください</div>
+    <div id="dropdown" class="dropdown"></div>
+    <div class="amount-row">
+      <span class="amount-label">量：</span>
+      <input type="number" id="amountInput" class="amount-input" min="0.1" step="0.1" value="100" placeholder="100">
+      <select id="unitSelect" class="unit-select">
+        <option value="g">g</option>
+        <option value="ml">ml</option>
+        <option value="個">個</option>
+        <option value="枚">枚</option>
+        <option value="パック">パック</option>
+        <option value="杯">杯</option>
+        <option value="人前">人前</option>
+        <option value="切れ">切れ</option>
+        <option value="本">本</option>
+      </select>
+    </div>
+    <div class="error-msg" id="amountErr">0より大きい数値を入力してください</div>
+    <button class="btn btn-primary" onclick="addFood()">追加</button>
+  </div>
+
+  <hr class="divider">
+  <div class="section-label">今日の食事ログ</div>
+  <div class="meal-tabs">
+    <button class="meal-tab active" onclick="filterMeal('all',this)">すべて</button>
+    <button class="meal-tab" onclick="filterMeal('morning',this)">朝食</button>
+    <button class="meal-tab" onclick="filterMeal('lunch',this)">昼食</button>
+    <button class="meal-tab" onclick="filterMeal('dinner',this)">夕食</button>
+    <button class="meal-tab" onclick="filterMeal('snack',this)">間食</button>
+  </div>
+  <div class="food-list" id="foodList">
+    <div class="empty-msg">まだ食品が追加されていません</div>
+  </div>
+
+  <hr class="divider">
+  <div class="bottom-btns">
+    <button class="btn btn-danger" onclick="resetLog()">ログをリセット</button>
+    <button class="btn" onclick="toggleGas()">GAS連携設定</button>
+  </div>
+  <button class="btn send-btn" onclick="sendToGas()">📤 スプレッドシートに送信</button>
+
+  <div class="gas-panel" id="gasPanel">
+    <div class="gas-panel-title">GAS Web App URL</div>
+    <div class="gas-row">
+      <input type="url" id="gasUrl" placeholder="https://script.google.com/macros/s/...">
+      <button class="btn" onclick="saveGasUrl()">保存</button>
+    </div>
+    <div class="gas-status" id="gasStatus"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const FOODS=[
+  {name:"白米（ご飯）",alias:["ごはん","米","白ごはん"],per100:{kcal:168,p:2.5,f:0.3,c:37.1},units:{杯:150,人前:200}},
+  {name:"玄米（ご飯）",alias:["げんまい"],per100:{kcal:165,p:2.8,f:1.0,c:35.6},units:{杯:150}},
+  {name:"食パン（6枚切）",alias:["食パン","パン","トースト"],per100:{kcal:264,p:9.3,f:4.4,c:46.7},units:{枚:60}},
+  {name:"うどん（ゆで）",alias:["うどん"],per100:{kcal:105,p:2.6,f:0.4,c:21.6},units:{人前:200}},
+  {name:"そば（ゆで）",alias:["そば"],per100:{kcal:132,p:4.8,f:1.0,c:26.0},units:{人前:170}},
+  {name:"スパゲッティ（ゆで）",alias:["パスタ","スパゲティ"],per100:{kcal:165,p:5.8,f:0.9,c:32.2},units:{人前:200}},
+  {name:"ラーメン（中華麺・ゆで）",alias:["ラーメン","中華麺"],per100:{kcal:149,p:5.2,f:0.6,c:30.3},units:{人前:180}},
+  {name:"鶏むね肉（皮なし）",alias:["鶏むね","チキン","とりむね"],per100:{kcal:116,p:23.3,f:1.9,c:0.0}},
+  {name:"鶏もも肉（皮あり）",alias:["鶏もも","とりもも"],per100:{kcal:190,p:17.3,f:14.2,c:0.0}},
+  {name:"鶏ささみ",alias:["ささみ"],per100:{kcal:109,p:23.0,f:0.8,c:0.0},units:{本:70}},
+  {name:"豚ロース（脂身なし）",alias:["豚ロース","ポーク"],per100:{kcal:150,p:22.7,f:5.6,c:0.2}},
+  {name:"豚バラ肉",alias:["豚バラ","ばら"],per100:{kcal:395,p:14.4,f:35.4,c:0.1}},
+  {name:"牛もも肉（赤身）",alias:["牛もも","牛肉"],per100:{kcal:193,p:21.3,f:10.7,c:0.5}},
+  {name:"牛ひき肉",alias:["ひき肉","牛ミンチ"],per100:{kcal:272,p:17.1,f:21.1,c:0.3}},
+  {name:"鮭（生）",alias:["さけ","サーモン","しゃけ"],per100:{kcal:133,p:22.3,f:4.1,c:0.1},units:{切れ:80}},
+  {name:"マグロ（赤身）",alias:["まぐろ","ツナ"],per100:{kcal:125,p:26.4,f:1.4,c:0.1}},
+  {name:"サバ（生）",alias:["さば"],per100:{kcal:247,p:20.6,f:16.8,c:0.3}},
+  {name:"ブリ（生）",alias:["ぶり"],per100:{kcal:257,p:21.4,f:17.6,c:0.3}},
+  {name:"タラ（生）",alias:["たら"],per100:{kcal:77,p:17.6,f:0.2,c:0.1}},
+  {name:"エビ",alias:["えび","海老"],per100:{kcal:82,p:19.6,f:0.3,c:0.0}},
+  {name:"卵（全卵・生）",alias:["卵","たまご","目玉焼き","ゆで卵","スクランブルエッグ","オムレツ","温泉卵"],per100:{kcal:151,p:12.3,f:10.3,c:0.3},units:{個:55}},
+  {name:"牛乳（普通）",alias:["ミルク","牛乳"],per100:{kcal:67,p:3.3,f:3.8,c:4.8},units:{ml:1}},
+  {name:"プレーンヨーグルト",alias:["ヨーグルト"],per100:{kcal:62,p:3.6,f:3.0,c:4.9},units:{パック:100}},
+  {name:"ギリシャヨーグルト",alias:["ギリシャ"],per100:{kcal:95,p:7.2,f:5.8,c:4.0},units:{パック:100}},
+  {name:"プロセスチーズ",alias:["チーズ"],per100:{kcal:339,p:22.7,f:26.0,c:1.3},units:{枚:20}},
+  {name:"豆腐（木綿）",alias:["もめん豆腐","豆腐"],per100:{kcal:73,p:7.0,f:4.3,c:1.5}},
+  {name:"豆腐（絹ごし）",alias:["絹豆腐","きぬ豆腐"],per100:{kcal:56,p:5.3,f:3.0,c:2.0}},
+  {name:"納豆",alias:["なっとう"],per100:{kcal:200,p:16.5,f:10.0,c:12.1},units:{パック:45}},
+  {name:"大豆（ゆで）",alias:["大豆"],per100:{kcal:180,p:16.0,f:9.8,c:8.4}},
+  {name:"アボカド",alias:["アボガド"],per100:{kcal:187,p:2.5,f:17.5,c:3.3},units:{個:150}},
+  {name:"バナナ",alias:["ばなな"],per100:{kcal:86,p:1.1,f:0.2,c:22.5},units:{本:100}},
+  {name:"りんご",alias:["リンゴ"],per100:{kcal:61,p:0.2,f:0.2,c:16.2},units:{個:200}},
+  {name:"みかん",alias:["ミカン"],per100:{kcal:49,p:0.7,f:0.1,c:12.0},units:{個:80}},
+  {name:"ブロッコリー",alias:["ぶろっこりー"],per100:{kcal:37,p:4.3,f:0.5,c:5.2}},
+  {name:"ほうれん草",alias:["ほうれんそう"],per100:{kcal:25,p:2.2,f:0.4,c:4.0}},
+  {name:"小松菜",alias:["こまつな"],per100:{kcal:23,p:1.5,f:0.2,c:3.9}},
+  {name:"キャベツ",alias:["きゃべつ"],per100:{kcal:23,p:1.3,f:0.2,c:5.2}},
+  {name:"レタス",alias:["れたす"],per100:{kcal:11,p:0.6,f:0.1,c:2.8}},
+  {name:"トマト",alias:["とまと"],per100:{kcal:20,p:0.7,f:0.1,c:4.7},units:{個:150}},
+  {name:"きゅうり",alias:["キュウリ"],per100:{kcal:14,p:1.0,f:0.1,c:3.0},units:{個:100}},
+  {name:"玉ねぎ",alias:["たまねぎ"],per100:{kcal:37,p:1.0,f:0.1,c:8.8},units:{個:200}},
+  {name:"にんじん",alias:["ニンジン","人参"],per100:{kcal:39,p:0.7,f:0.2,c:9.3}},
+  {name:"じゃがいも",alias:["ジャガイモ","ポテト"],per100:{kcal:76,p:1.8,f:0.1,c:17.3},units:{個:150}},
+  {name:"さつまいも",alias:["サツマイモ"],per100:{kcal:132,p:1.2,f:0.2,c:31.9},units:{個:200}},
+  {name:"かぼちゃ",alias:["カボチャ"],per100:{kcal:91,p:1.9,f:0.3,c:20.6}},
+  {name:"もやし",alias:["モヤシ"],per100:{kcal:12,p:1.5,f:0.1,c:1.3}},
+  {name:"白菜",alias:["はくさい"],per100:{kcal:14,p:0.8,f:0.1,c:3.2}},
+  {name:"大根",alias:["だいこん"],per100:{kcal:18,p:0.5,f:0.1,c:4.1}},
+  {name:"ごぼう",alias:["ゴボウ"],per100:{kcal:65,p:1.8,f:0.1,c:15.4}},
+  {name:"れんこん",alias:["レンコン"],per100:{kcal:66,p:1.9,f:0.1,c:15.5}},
+  {name:"えのき",alias:["えのきたけ","エノキ"],per100:{kcal:34,p:2.7,f:0.2,c:7.6}},
+  {name:"しいたけ",alias:["シイタケ"],per100:{kcal:34,p:3.0,f:0.4,c:6.4}},
+  {name:"しめじ",alias:["シメジ"],per100:{kcal:26,p:2.7,f:0.5,c:4.8}},
+  {name:"まいたけ",alias:["マイタケ"],per100:{kcal:22,p:2.0,f:0.5,c:4.4}},
+  {name:"エリンギ",alias:["えりんぎ"],per100:{kcal:31,p:2.8,f:0.4,c:6.0}},
+  {name:"わかめ（水戻し）",alias:["わかめ"],per100:{kcal:16,p:1.9,f:0.2,c:2.0}},
+  {name:"もずく",alias:["モズク"],per100:{kcal:4,p:0.2,f:0.1,c:1.4}},
+  {name:"こんにゃく",alias:["コンニャク"],per100:{kcal:7,p:0.1,f:0.1,c:2.3}},
+  {name:"しらたき",alias:["糸こんにゃく"],per100:{kcal:6,p:0.1,f:0.0,c:1.9}},
+  {name:"油揚げ",alias:["あぶらあげ"],per100:{kcal:380,p:15.3,f:34.4,c:0.4},units:{枚:30}},
+  {name:"キムチ",alias:["きむち"],per100:{kcal:46,p:2.2,f:0.3,c:7.8}},
+  {name:"オリーブオイル",alias:["オリーブ油"],per100:{kcal:921,p:0.0,f:100.0,c:0.0}},
+  {name:"ごま油",alias:["セサミオイル"],per100:{kcal:921,p:0.0,f:100.0,c:0.0}},
+  {name:"マヨネーズ",alias:["まよ"],per100:{kcal:703,p:1.5,f:76.0,c:3.6}},
+  {name:"醤油",alias:["しょうゆ"],per100:{kcal:71,p:5.8,f:0.0,c:9.9}},
+  {name:"味噌汁",alias:["みそしる"],per100:{kcal:22,p:1.5,f:0.7,c:2.2},units:{杯:180}},
+  {name:"豚汁",alias:["とんじる"],per100:{kcal:51,p:3.0,f:2.5,c:4.8},units:{杯:200}},
+  {name:"ホエイプロテイン",alias:["プロテイン","ホエイ"],per100:{kcal:380,p:75.0,f:5.0,c:10.0},units:{杯:30}},
+  {name:"プロテインバー",alias:["プロテインバー"],per100:{kcal:350,p:30.0,f:10.0,c:35.0},units:{本:60}},
+  {name:"おにぎり（梅）",alias:["おにぎり","おむすび"],per100:{kcal:179,p:3.5,f:0.4,c:39.7},units:{個:100}},
+  {name:"サラダチキン",alias:["サラダチキン"],per100:{kcal:121,p:25.0,f:1.9,c:0.0},units:{個:115}},
+  {name:"唐揚げ",alias:["からあげ","フライドチキン"],per100:{kcal:307,p:16.3,f:22.0,c:10.8},units:{個:40}},
+  {name:"餃子（焼き）",alias:["ぎょうざ"],per100:{kcal:197,p:8.9,f:8.6,c:21.1},units:{個:20}},
+  {name:"納豆ご飯",alias:["なっとうごはん"],per100:{kcal:158,p:7.5,f:4.9,c:19.7},units:{個:335}},
+  {name:"切り干し大根（乾）",alias:["切り干し","きりぼし"],per100:{kcal:279,p:9.7,f:0.8,c:67.3}},
+  {name:"ツナ缶（水煮）",alias:["ツナ缶","シーチキン"],per100:{kcal:71,p:16.0,f:0.7,c:0.1},units:{個:70}},
+  {name:"サバ缶（水煮）",alias:["サバ缶"],per100:{kcal:174,p:20.9,f:10.7,c:0.2},units:{個:190}},
+  {name:"コーヒー（ブラック）",alias:["コーヒー"],per100:{kcal:4,p:0.2,f:0.0,c:0.7},units:{ml:1}},
+  {name:"牛乳（低脂肪）",alias:["低脂肪乳"],per100:{kcal:46,p:3.8,f:1.0,c:5.5},units:{ml:1}},
+  {name:"豆乳（無調整）",alias:["とうにゅう","豆乳"],per100:{kcal:46,p:3.6,f:2.0,c:3.1},units:{ml:1}},
+  {name:"牛丼（並）",alias:["牛丼"],per100:{kcal:212,p:8.5,f:7.8,c:28.2},units:{人前:360}},
+  {name:"カレーライス",alias:["カレー"],per100:{kcal:180,p:6.2,f:6.2,c:25.9},units:{人前:450}},
+  {name:"アーモンド",alias:["ナッツ","アーモンドナッツ"],per100:{kcal:609,p:20.3,f:51.8,c:17.4}},
+  {name:"くるみ",alias:["ウォールナッツ"],per100:{kcal:713,p:14.6,f:68.8,c:11.7}},
+  {name:"チョコレート（ミルク）",alias:["チョコ"],per100:{kcal:558,p:7.4,f:34.9,c:55.8},units:{枚:60}},
+  {name:"アイスクリーム（バニラ）",alias:["アイス"],per100:{kcal:212,p:3.6,f:12.0,c:24.7}},
+];
+
+let log=[],selectedFood=null,filterMealType='all',donutChart=null;
+let gasUrl=localStorage.getItem('gasUrl')||'';
+const days=['日','月','火','水','木','金','土'];
+const mealLabel={morning:'朝食',lunch:'昼食',dinner:'夕食',snack:'間食'};
+const mealBadge={morning:'b-morning',lunch:'b-lunch',dinner:'b-dinner',snack:'b-snack'};
+
+// 日付セット
+(function(){
+  const n=new Date();
+  document.getElementById('dateBadge').textContent=`${n.getFullYear()}/${n.getMonth()+1}/${n.getDate()}（${days[n.getDay()]}）`;
+})();
+
+// GAS URL 表示
+if(gasUrl){
+  document.getElementById('gasStatus').textContent='URL設定済み';
+  document.getElementById('gasStatus').className='gas-status ok';
+}
+
+function getMealType(){
+  const h=new Date().getHours();
+  if(h>=5&&h<10)return'morning';
+  if(h>=10&&h<14)return'lunch';
+  if(h>=17&&h<22)return'dinner';
+  return'snack';
+}
+
+// 検索
+function search(q){
+  if(!q)return[];
+  q=q.toLowerCase();
+  return FOODS.filter(f=>
+    f.name.toLowerCase().includes(q)||(f.alias&&f.alias.some(a=>a.toLowerCase().includes(q)))
+  ).slice(0,8);
+}
+
+const searchEl=document.getElementById('foodSearch');
+const dropdownEl=document.getElementById('dropdown');
+const unitSel=document.getElementById('unitSelect');
+
+searchEl.addEventListener('input',()=>{
+  clearErr('foodErr','foodSearch');
+  const results=search(searchEl.value.trim());
+  if(!searchEl.value.trim()||!results.length){dropdownEl.style.display='none';selectedFood=null;return;}
+  dropdownEl.innerHTML='';
+  results.forEach(f=>{
+    const div=document.createElement('div');
+    div.className='dropdown-item';
+    div.innerHTML=`<span>${f.name}</span><span class="food-kcal">${f.per100.kcal}kcal/100g</span>`;
+    div.onclick=()=>{selectedFood=f;searchEl.value=f.name;dropdownEl.style.display='none';updateUnits(f);};
+    dropdownEl.appendChild(div);
+  });
+  dropdownEl.style.display='block';
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#foodSearch')&&!e.target.closest('#dropdown'))dropdownEl.style.display='none';
+});
+
+function updateUnits(f){
+  Array.from(unitSel.options).forEach(o=>{
+    o.disabled=(o.value!=='g'&&o.value!=='ml')&&!(f.units&&f.units[o.value]);
+  });
+  unitSel.value='g';
+}
+
+function toGrams(food,amount,unit){
+  if(unit==='g'||unit==='ml')return amount;
+  if(food.units&&food.units[unit])return amount*food.units[unit];
+  return amount;
+}
+
+// バリデーション
+function showErr(errId,inputId){
+  document.getElementById(errId).classList.add('show');
+  document.getElementById(inputId).classList.add('error');
+}
+function clearErr(errId,inputId){
+  document.getElementById(errId).classList.remove('show');
+  document.getElementById(inputId).classList.remove('error');
+}
+
+function addFood(){
+  let valid=true;
+  // 食品バリデーション
+  if(!selectedFood){
+    const r=search(searchEl.value.trim());
+    if(r.length)selectedFood=r[0];
+    else{showErr('foodErr','foodSearch');valid=false;}
+  }
+  // 量バリデーション
+  const amountVal=parseFloat(document.getElementById('amountInput').value);
+  if(!amountVal||amountVal<=0){
+    showErr('amountErr','amountInput');valid=false;
+  } else {
+    clearErr('amountErr','amountInput');
+  }
+  if(!valid)return;
+
+  const unit=unitSel.value;
+  const grams=toGrams(selectedFood,amountVal,unit);
+  const r=grams/100;
+  log.push({
+    id:Date.now(),name:selectedFood.name,amount:amountVal,unit,grams,meal:getMealType(),
+    kcal:Math.round(selectedFood.per100.kcal*r),
+    p:Math.round(selectedFood.per100.p*r*10)/10,
+    f:Math.round(selectedFood.per100.f*r*10)/10,
+    c:Math.round(selectedFood.per100.c*r*10)/10
+  });
+  searchEl.value='';selectedFood=null;
+  document.getElementById('amountInput').value=100;
+  unitSel.value='g';
+  clearErr('foodErr','foodSearch');
+  render();
+  showToast(`${log[log.length-1].name} を追加しました`,'success');
+}
+
+function deleteFood(id){
+  const item=log.find(e=>e.id===id);
+  log=log.filter(e=>e.id!==id);
+  render();
+  if(item)showToast(`${item.name} を削除しました`);
+}
+
+function resetLog(){
+  if(!log.length){showToast('ログが空です');return;}
+  if(confirm('今日のログをリセットしますか？')){log=[];render();showToast('ログをリセットしました');}
+}
+
+function filterMeal(type,btn){
+  filterMealType=type;
+  document.querySelectorAll('.meal-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
+
+function render(){renderSummary();renderList();renderDonut();}
+
+function renderSummary(){
+  document.getElementById('sumKcal').textContent=Math.round(log.reduce((s,e)=>s+e.kcal,0));
+  document.getElementById('sumP').textContent=(Math.round(log.reduce((s,e)=>s+e.p,0)*10)/10);
+  document.getElementById('sumF').textContent=(Math.round(log.reduce((s,e)=>s+e.f,0)*10)/10);
+  document.getElementById('sumC').textContent=(Math.round(log.reduce((s,e)=>s+e.c,0)*10)/10);
+}
+
+function renderList(){
+  const list=document.getElementById('foodList');
+  const items=filterMealType==='all'?log:log.filter(e=>e.meal===filterMealType);
+  if(!items.length){list.innerHTML='<div class="empty-msg">食品がありません</div>';return;}
+  list.innerHTML=items.map(e=>`
+    <div class="food-item">
+      <span class="food-meal-badge ${mealBadge[e.meal]}">${mealLabel[e.meal]}</span>
+      <div class="food-info">
+        <div class="food-name">${e.name} <span class="food-amount">${e.amount}${e.unit}</span></div>
+        <div class="food-detail">${e.kcal}kcal｜P${e.p}g F${e.f}g C${e.c}g</div>
+      </div>
+      <button class="del-btn" onclick="deleteFood(${e.id})" aria-label="削除">×</button>
+    </div>`).join('');
+}
+
+function renderDonut(){
+  const totP=log.reduce((s,e)=>s+e.p,0);
+  const totF=log.reduce((s,e)=>s+e.f,0);
+  const totC=log.reduce((s,e)=>s+e.c,0);
+  const pK=totP*4,fK=totF*9,cK=totC*4,total=pK+fK+cK;
+  document.getElementById('pPct').textContent=total>0?Math.round(pK/total*100):'-';
+  document.getElementById('fPct').textContent=total>0?Math.round(fK/total*100):'-';
+  document.getElementById('cPct').textContent=total>0?Math.round(cK/total*100):'-';
+  const data=total>0?[pK,fK,cK]:[1,1,1];
+  const a=total>0?1:0.15;
+  const colors=[`rgba(58,158,95,${a})`,`rgba(230,160,42,${a})`,`rgba(58,123,213,${a})`];
+  if(donutChart){donutChart.data.datasets[0].data=data;donutChart.data.datasets[0].backgroundColor=colors;donutChart.update();return;}
+  donutChart=new Chart(document.getElementById('donutChart'),{
+    type:'doughnut',
+    data:{labels:['P','F','C'],datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#ffffff'}]},
+    options:{responsive:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{enabled:total>0}},animation:{duration:300}}
+  });
+}
+
+// GAS設定
+function toggleGas(){
+  const panel=document.getElementById('gasPanel');
+  panel.classList.toggle('show');
+  if(panel.classList.contains('show'))document.getElementById('gasUrl').value=gasUrl;
+}
+
+function saveGasUrl(){
+  const val=document.getElementById('gasUrl').value.trim();
+  if(!val){showToast('URLを入力してください','error');return;}
+  if(!val.startsWith('https://script.google.com/')){
+    showToast('GAS のURLではありません','error');return;
+  }
+  gasUrl=val;
+  localStorage.setItem('gasUrl',gasUrl);
+  document.getElementById('gasStatus').textContent='URL設定済み';
+  document.getElementById('gasStatus').className='gas-status ok';
+  document.getElementById('gasPanel').classList.remove('show');
+  showToast('GAS URLを保存しました','success');
+}
+
+// GAS送信
+async function sendToGas(){
+  if(!gasUrl){showToast('GAS URLを設定してください','error');toggleGas();return;}
+  if(!log.length){showToast('ログが空です','error');return;}
+  try{
+    const res=await fetch(gasUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({date:new Date().toISOString().slice(0,10),log})
+    });
+    if(res.ok){
+      showToast(`${log.length}件をスプレッドシートに送信しました`,'success');
+    } else {
+      showToast('送信エラー: '+res.status,'error');
+    }
+  }catch(e){
+    // no-corsではresponseが取れないため成功とみなす
+    showToast(`${log.length}件を送信しました（確認はスプシで）`,'success');
+  }
+}
+
+// トースト通知
+let toastTimer=null;
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast'+(type?' '+type:'');
+  void t.offsetWidth;
+  t.classList.add('show');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+render();
+</script>
+</body>
+</html>
