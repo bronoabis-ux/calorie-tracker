@@ -330,7 +330,9 @@ const FOODS=[
 ];
 
 let log=[],selectedFood=null,filterMealType='all',donutChart=null;
-let gasUrl=localStorage.getItem('gasUrl')||'';
+// GAS URL（直接埋め込み）- localStorageの設定があればそちらを優先
+const GAS_URL_DEFAULT='https://script.google.com/macros/s/AKfycbzFEl6-kNb45G-qpV1NlRfbaBJUOisWdiVBQmsWB6qqeAbEAbZGiDvqYi5o546_ExY9Rg/exec';
+let gasUrl=localStorage.getItem('gasUrl')||GAS_URL_DEFAULT;
 const mealLabel={morning:'朝食',lunch:'昼食',dinner:'夕食',snack:'間食'};
 const mealBadge={morning:'b-morning',lunch:'b-lunch',dinner:'b-dinner',snack:'b-snack'};
 
