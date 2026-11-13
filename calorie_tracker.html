@@ -521,20 +521,20 @@ function saveGasUrl(){
 async function sendToGas(){
   if(!gasUrl){showToast('GAS URLを設定してください','error');toggleGas();return;}
   if(!log.length){showToast('ログが空です','error');return;}
+  const payload = JSON.stringify({date:new Date().toISOString().slice(0,10),log});
   try{
-    const res=await fetch(gasUrl,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({date:new Date().toISOString().slice(0,10),log})
+    // GASはリダイレクトを返すためno-corsで送信
+    // FormDataを使うことでpreflight(OPTIONS)を回避しCORBを防ぐ
+    const form = new FormData();
+    form.append('payload', payload);
+    await fetch(gasUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: form
     });
-    if(res.ok){
-      showToast(`${log.length}件をスプレッドシートに送信しました`,'success');
-    } else {
-      showToast('送信エラー: '+res.status,'error');
-    }
+    showToast(`${log.length}件を送信しました。スプシを確認してください。`,'success');
   }catch(e){
-    // no-corsではresponseが取れないため成功とみなす
-    showToast(`${log.length}件を送信しました（確認はスプシで）`,'success');
+    showToast('送信エラー: '+e.message,'error');
   }
 }
 
