@@ -359,11 +359,33 @@ if(gasUrl){
   document.getElementById('gasStatus').className='gas-status ok';
 }
 
+// スプシの食品DBを取得してFOODSに追加
+let spreadsheetFoods = [];
+async function loadSpreadsheetDb() {
+  if(!gasUrl) return;
+  try {
+    const res = await fetch(gasUrl + '?action=getDb');
+    const data = await res.json();
+    if(data.status === 'ok' && data.foods) {
+      // スプシDBの食品名と既存FOODSの食品名を照合して重複を除く
+      const existingNames = new Set(FOODS.map(f => f.name));
+      spreadsheetFoods = data.foods.filter(f => !existingNames.has(f.name));
+      showToast(`スプシから${spreadsheetFoods.length}品目を読み込みました`, 'success');
+    }
+  } catch(e) {
+    console.warn('食品DB読み込みエラー:', e.message);
+  }
+}
+// 起動時に読み込み
+loadSpreadsheetDb();
+
 // 検索
 function search(q){
   if(!q)return[];
   q=q.toLowerCase();
-  return FOODS.filter(f=>
+  // 標準DB＋スプシDBを合わせて検索（スプシ側を優先で後ろに追加）
+  const allFoods=[...FOODS,...spreadsheetFoods];
+  return allFoods.filter(f=>
     f.name.toLowerCase().includes(q)||(f.alias&&f.alias.some(a=>a.toLowerCase().includes(q)))
   ).slice(0,8);
 }
