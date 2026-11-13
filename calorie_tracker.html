@@ -43,7 +43,8 @@
   /* ヘッダー */
   .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
   .title { font-size: 15px; font-weight: 600; color: var(--text); }
-  .date-badge { font-size: 11px; color: var(--text2); background: var(--surface); border: 0.5px solid var(--border); border-radius: 20px; padding: 4px 10px; }
+  .date-input { font-size: 11px; color: var(--text2); background: var(--surface); border: 0.5px solid var(--border); border-radius: 20px; padding: 4px 10px; cursor: pointer; outline: none; font-family: inherit; }
+  .date-input:focus { border-color: var(--accent); }
 
   /* サマリー */
   .summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-bottom: 10px; }
@@ -152,7 +153,7 @@
 
   <div class="header">
     <span class="title">食事管理トラッカー</span>
-    <span class="date-badge" id="dateBadge"></span>
+    <input type="date" id="dateInput" class="date-input">
   </div>
 
   <div class="summary-grid">
@@ -177,6 +178,15 @@
     <input type="text" id="foodSearch" class="input-field" placeholder="食品名を入力（例：鶏むね、卵、うどん）" autocomplete="off">
     <div class="error-msg" id="foodErr">食品を選択してください</div>
     <div id="dropdown" class="dropdown"></div>
+    <div class="amount-row" style="margin-bottom:6px">
+      <span class="amount-label">食事区分：</span>
+      <select id="mealSelect" class="unit-select" style="flex:1">
+        <option value="morning">朝食</option>
+        <option value="lunch">昼食</option>
+        <option value="dinner">夕食</option>
+        <option value="snack">間食</option>
+      </select>
+    </div>
     <div class="amount-row">
       <span class="amount-label">量：</span>
       <input type="number" id="amountInput" class="amount-input" min="0.1" step="0.1" value="100" placeholder="100">
@@ -321,28 +331,32 @@ const FOODS=[
 
 let log=[],selectedFood=null,filterMealType='all',donutChart=null;
 let gasUrl=localStorage.getItem('gasUrl')||'';
-const days=['日','月','火','水','木','金','土'];
 const mealLabel={morning:'朝食',lunch:'昼食',dinner:'夕食',snack:'間食'};
 const mealBadge={morning:'b-morning',lunch:'b-lunch',dinner:'b-dinner',snack:'b-snack'};
 
-// 日付セット
+// 日付入力の初期化（今日の日付をデフォルトに）
 (function(){
-  const n=new Date();
-  document.getElementById('dateBadge').textContent=`${n.getFullYear()}/${n.getMonth()+1}/${n.getDate()}（${days[n.getDay()]}）`;
+  const today=new Date();
+  const y=today.getFullYear();
+  const m=String(today.getMonth()+1).padStart(2,'0');
+  const d=String(today.getDate()).padStart(2,'0');
+  document.getElementById('dateInput').value=`${y}-${m}-${d}`;
+})();
+
+// 食事区分の初期値を時刻から自動判定してセット（変更可能）
+(function(){
+  const h=new Date().getHours();
+  let meal='snack';
+  if(h>=5&&h<10)meal='morning';
+  else if(h>=10&&h<14)meal='lunch';
+  else if(h>=17&&h<22)meal='dinner';
+  document.getElementById('mealSelect').value=meal;
 })();
 
 // GAS URL 表示
 if(gasUrl){
   document.getElementById('gasStatus').textContent='URL設定済み';
   document.getElementById('gasStatus').className='gas-status ok';
-}
-
-function getMealType(){
-  const h=new Date().getHours();
-  if(h>=5&&h<10)return'morning';
-  if(h>=10&&h<14)return'lunch';
-  if(h>=17&&h<22)return'dinner';
-  return'snack';
 }
 
 // 検索
@@ -380,7 +394,15 @@ function updateUnits(f){
   Array.from(unitSel.options).forEach(o=>{
     o.disabled=(o.value!=='g'&&o.value!=='ml')&&!(f.units&&f.units[o.value]);
   });
-  unitSel.value='g';
+  // unitsがある食品はその最初の単位をデフォルトに、量は1に
+  if(f.units){
+    const firstUnit=Object.keys(f.units)[0];
+    unitSel.value=firstUnit;
+    document.getElementById('amountInput').value=1;
+  } else {
+    unitSel.value='g';
+    document.getElementById('amountInput').value=100;
+  }
 }
 
 function toGrams(food,amount,unit){
@@ -417,10 +439,13 @@ function addFood(){
   if(!valid)return;
 
   const unit=unitSel.value;
+  const meal=document.getElementById('mealSelect').value;
   const grams=toGrams(selectedFood,amountVal,unit);
   const r=grams/100;
   log.push({
-    id:Date.now(),name:selectedFood.name,amount:amountVal,unit,grams,meal:getMealType(),
+    id:Date.now(),
+    name:selectedFood.name,
+    amount:amountVal,unit,grams,meal,
     kcal:Math.round(selectedFood.per100.kcal*r),
     p:Math.round(selectedFood.per100.p*r*10)/10,
     f:Math.round(selectedFood.per100.f*r*10)/10,
@@ -523,8 +548,9 @@ async function sendToGas(){
   if(!log.length){showToast('ログが空です','error');return;}
   try{
     // GETリクエスト方式（CORS制限を回避）
+    const date = document.getElementById('dateInput').value || new Date().toISOString().slice(0,10);
     const payload = encodeURIComponent(JSON.stringify({
-      date: new Date().toISOString().slice(0,10),
+      date,
       log
     }));
     const url = gasUrl + '?data=' + payload;
