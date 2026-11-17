@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食品DB管理</title>
+<style>
+  :root {
+    --accent: #2a78d6;
+    --accent-dark: #1a5fad;
+    --green: #3a9e5f;
+    --amber: #e6a02a;
+    --blue: #3a7bd5;
+    --orange: #e06c3a;
+    --danger: #d03b3b;
+    --warn: #b7791f;
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --surface2: #f9f9f7;
+    --border: rgba(0,0,0,0.1);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --text2: #52514e;
+    --text3: #898781;
+    --radius: 8px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a19;
+      --surface: #242422;
+      --surface2: #2c2c2a;
+      --border: rgba(255,255,255,0.1);
+      --border-strong: rgba(255,255,255,0.18);
+      --text: #f0efec;
+      --text2: #c3c2b7;
+      --text3: #a09e96;
+      --warn: #e6b65a;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 480px; margin: 0 auto; padding: 16px 12px 60px; }
+
+  .header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .title { font-size: 15px; font-weight: 600; }
+  .status { font-size: 11px; color: var(--text3); }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-bottom: 14px; border: 0.5px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+  .tab { font: inherit; font-size: 13px; font-weight: 600; padding: 10px; border: none; background: transparent; color: var(--text2); cursor: pointer; }
+  .tab.active { background: var(--accent); color: #fff; }
+  .tab:focus-visible, .btn:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .section-label { font-size: 11px; font-weight: 600; color: var(--text3); margin: 16px 0 6px; letter-spacing: 0.03em; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .hint { font-size: 11px; color: var(--text3); margin-top: 3px; line-height: 1.5; }
+  input[type=text], select {
+    width: 100%; font: inherit; font-size: 16px; padding: 10px 12px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--surface); color: var(--text); outline: none;
+  }
+  input[type=text]:focus, select:focus { border-color: var(--accent); }
+  input:disabled, select:disabled { opacity: 0.55; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .row4 label { text-align: center; }
+  .row4 input { text-align: center; padding: 10px 4px; }
+  .lab-kcal { color: var(--orange); font-weight: 600; }
+  .lab-p { color: var(--green); font-weight: 600; }
+  .lab-f { color: var(--amber); font-weight: 600; }
+  .lab-c { color: var(--blue); font-weight: 600; }
+
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .seg button { font: inherit; font-size: 13px; padding: 9px 6px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text2); cursor: pointer; }
+  .seg button.active { border-color: var(--accent); color: var(--accent); background: var(--surface2); font-weight: 600; }
+  .seg button:disabled { opacity: 0.45; cursor: default; }
+
+  .inline { display: flex; gap: 8px; align-items: stretch; }
+  .inline > input { flex: 1; min-width: 0; }
+
+  .preview { background: var(--surface); border: 0.5px solid var(--border-strong); border-radius: 12px; padding: 12px; margin: 14px 0 10px; }
+  .preview-title { font-size: 11px; font-weight: 600; color: var(--text3); margin-bottom: 8px; }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+  .metric-label { font-size: 10px; color: var(--text3); }
+  .metric-value { font-size: 20px; font-weight: 600; line-height: 1.2; display: block; font-variant-numeric: tabular-nums; }
+  .metric-unit { font-size: 10px; color: var(--text3); }
+  .m-kcal .metric-value { color: var(--orange); }
+  .m-p .metric-value { color: var(--green); }
+  .m-f .metric-value { color: var(--amber); }
+  .m-c .metric-value { color: var(--blue); }
+  .preview-empty { font-size: 12px; color: var(--text3); text-align: center; padding: 6px 0; }
+  .check-line { font-size: 11px; color: var(--text3); margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--border); line-height: 1.5; }
+
+  .msgs { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .msg { font-size: 12px; line-height: 1.5; padding: 7px 10px; border-radius: var(--radius); }
+  .msg.err { color: var(--danger); background: rgba(208,59,59,0.09); }
+  .msg.warn { color: var(--warn); background: rgba(230,160,42,0.13); }
+
+  .btn { font: inherit; font-size: 13px; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; font-weight: 500; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); width: 100%; font-size: 15px; padding: 13px; }
+  .btn-primary:not(:disabled):hover { background: var(--accent-dark); }
+  .btn-danger { color: var(--danger); border-color: var(--danger); width: 100%; margin-top: 10px; }
+  .btn-sm { font-size: 12px; padding: 0 12px; white-space: nowrap; }
+
+  .edit-banner { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(42,120,214,0.1); color: var(--accent); font-size: 12px; padding: 8px 10px; border-radius: var(--radius); margin-bottom: 12px; }
+  .edit-banner button { font: inherit; font-size: 12px; background: none; border: none; color: var(--accent); text-decoration: underline; cursor: pointer; padding: 4px; }
+  .hidden { display: none !important; }
+
+  /* 一覧 */
+  .food-list { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+  .food-item { text-align: left; font: inherit; width: 100%; display: block; padding: 10px 12px; background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border); color: var(--text); cursor: pointer; }
+  .food-item:hover { background: var(--surface2); }
+  .food-name { font-size: 14px; font-weight: 500; }
+  .food-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .badge { font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; background: rgba(230,160,42,0.2); color: var(--warn); font-weight: 600; }
+  .empty { color: var(--text3); font-size: 13px; text-align: center; padding: 24px 0; }
+  .more { font-size: 12px; color: var(--text3); text-align: center; padding: 10px 0; }
+
+  details.settings { margin-top: 28px; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+  details.settings summary { font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; }
+  details.settings .field { margin-top: 10px; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1a1a18; color: #f0efec; font-size: 13px; padding: 10px 20px; border-radius: 20px; opacity: 0; transition: transform 0.25s, opacity 0.25s; max-width: 92vw; text-align: center; z-index: 999; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.success { background: #1e5c38; }
+  .toast.error { background: #7a1f1f; }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <span class="title">食品DB管理</span>
+    <span class="status" id="status">読み込み中…</span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" id="tabAdd" role="tab" onclick="showTab('add')">追加</button>
+    <button class="tab" id="tabList" role="tab" onclick="showTab('list')">一覧</button>
+  </div>
+
+  <!-- ===== 追加 / 編集 ===== -->
+  <section id="paneAdd">
+    <div class="edit-banner hidden" id="editBanner">
+      <span id="editBannerText"></span>
+      <button type="button" onclick="cancelEdit()">キャンセル</button>
+    </div>
+
+    <div class="seg" id="modeSeg">
+      <button type="button" id="modePer100" class="active" onclick="setMode('per100')">100gあたりで入力</button>
+      <button type="button" id="modePack" onclick="setMode('pack')">パッケージ表示から換算</button>
+    </div>
+
+    <div class="field">
+      <label for="fName">食品名</label>
+      <input type="text" id="fName" placeholder="例：牛丼（並）" autocomplete="off" oninput="update()">
+    </div>
+
+    <div class="field hidden" id="baseField">
+      <label for="fBase">栄養成分表示の基準量（g）</label>
+      <input type="text" id="fBase" inputmode="decimal" placeholder="例：40" oninput="update()">
+      <div class="hint">表示が「1個（40g）あたり」なら 40、「1食分（250g）あたり」なら 250 を入れます。下の値は表示のとおりに入力してください。100gあたりに自動換算します。</div>
+    </div>
+
+    <div class="section-label" id="nutriLabel">100gあたりの栄養成分</div>
+    <div class="row4">
+      <div class="field"><label for="fKcal" class="lab-kcal">kcal</label><input type="text" id="fKcal" inputmode="decimal" placeholder="0" oninput="update()"></div>
+      <div class="field"><label for="fP" class="lab-p">P (g)</label><input type="text" id="fP" inputmode="decimal" placeholder="0" oninput="update()"></div>
+      <div class="field"><label for="fF" class="lab-f">F (g)</label><input type="text" id="fF" inputmode="decimal" placeholder="0" oninput="update()"></div>
+      <div class="field"><label for="fC" class="lab-c">C (g)</label><input type="text" id="fC" inputmode="decimal" placeholder="0" oninput="update()"></div>
+    </div>
+    <div class="hint">P=タンパク質、F=脂質、C=炭水化物。炭水化物は「糖質＋食物繊維」の合計値です（表示が糖質と食物繊維に分かれている場合は足してください）。</div>
+
+    <div class="section-label">単位（任意）</div>
+    <div class="row2">
+      <div class="field">
+        <label for="fUnit">単位名</label>
+        <input type="text" id="fUnit" list="unitList" placeholder="例：個、杯、パック" oninput="update()">
+        <datalist id="unitList">
+          <option value="個"><option value="杯"><option value="枚"><option value="パック"><option value="本"><option value="切れ"><option value="人前"><option value="玉"><option value="袋"><option value="缶"><option value="皿">
+        </datalist>
+      </div>
+      <div class="field">
+        <label for="fUnitG">1単位あたり（g）</label>
+        <div class="inline">
+          <input type="text" id="fUnitG" inputmode="decimal" placeholder="例：40" oninput="update()">
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-sm hidden" id="unitFromBase" style="padding:8px 12px;margin-bottom:8px" onclick="unitFromBase()">基準量を1単位にする</button>
+    <div class="hint">単位を入れると、トラッカーで「1個」「1杯」のように個数で入力できます。入れなければgで入力します。</div>
+
+    <div class="section-label">その他</div>
+    <div class="field">
+      <label for="fCat">カテゴリ</label>
+      <select id="fCat" onchange="saveCategory()"></select>
+      <div class="hint" id="catHint"></div>
+    </div>
+    <div class="field">
+      <label for="fNote">備考（任意）</label>
+      <input type="text" id="fNote" placeholder="例：牛丼チェーン並盛の目安" oninput="update()">
+    </div>
+
+    <div class="preview" id="preview"></div>
+    <div class="msgs" id="msgs"></div>
+
+    <button type="button" class="btn btn-primary" id="submitBtn" onclick="submitFood()" disabled>追加</button>
+    <button type="button" class="btn btn-danger hidden" id="deleteBtn" onclick="deleteCurrent()">この食品を削除</button>
+  </section>
+
+  <!-- ===== 一覧 ===== -->
+  <section id="paneList" class="hidden">
+    <div class="field">
+      <label for="listSearch">登録済みの食品を検索</label>
+      <input type="text" id="listSearch" placeholder="食品名の一部を入力" oninput="renderList()" autocomplete="off">
+      <div class="hint">追加前の重複確認や、値の修正・削除に使います。食品をタップすると編集画面が開きます。</div>
+    </div>
+    <div class="food-list" id="foodList"></div>
+  </section>
+
+  <details class="settings" id="settings">
+    <summary>接続設定</summary>
+    <div class="field">
+      <label for="setUrl">GAS Web App URL</label>
+      <input type="text" id="setUrl" placeholder="https://script.google.com/macros/s/...">
+    </div>
+    <div class="field">
+      <label for="setToken">管理用の合言葉（ADMIN_TOKEN）</label>
+      <input type="text" id="setToken" placeholder="追加・編集・削除に必要" autocomplete="off" style="-webkit-text-security:disc">
+      <div class="hint">この端末にだけ保存されます。</div>
+    </div>
+    <button type="button" class="btn" onclick="saveSettings()">保存して確認</button>
+  </details>
+
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const GAS_URL_DEFAULT='https://script.google.com/macros/s/AKfycbzFEl6-kNb45G-qpV1NlRfbaBJUOisWdiVBQmsWB6qqeAbEAbZGiDvqYi5o546_ExY9Rg/exec';
+
+// localStorage が使えない環境でも動くようにする
+const store={
+  mem:{},
+  get(k){try{return localStorage.getItem(k)||'';}catch(e){return this.mem[k]||'';}},
+  set(k,v){try{localStorage.setItem(k,v);}catch(e){this.mem[k]=v;}}
+};
+
+let gasUrl=store.get('gasUrl')||GAS_URL_DEFAULT;
+let token=store.get('dbAdminToken')||'';
+let foods=[],categories=[];
+let mode='per100';      // 'per100' | 'pack'
+let editing=null;       // {row,name} | null
+let busy=false;
+
+const $=id=>document.getElementById(id);
+
+/* ---------- ユーティリティ ---------- */
+function toNum(v){
+  if(v==null)return NaN;
+  const s=String(v)
+    .replace(/[０-９]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0))
+    .replace(/[．。]/g,'.').replace(/[，,]/g,'').trim();
+  if(s==='')return NaN;
+  return Number(s);
+}
+const round1=x=>Math.round(x*10)/10;
+const fmt=x=>(Math.round(x*10)/10).toString();
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+let toastTimer=null;
+function showToast(msg,type=''){
+  const t=$('toast');
+  t.textContent=msg;
+  t.className='toast'+(type?' '+type:'');
+  void t.offsetWidth;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+/* ---------- GAS通信 ---------- */
+async function api(params){
+  const qs=new URLSearchParams(params).toString();
+  const res=await fetch(gasUrl+'?'+qs);
+  const data=await res.json();
+  if(data.status==='error')throw new Error(data.message);
+  return data;
+}
+
+// 追加・編集・削除（トークン必須。確認が必要な場合は確認後に再送信）
+async function callWrite(action,extra){
+  if(!token){
+    $('settings').open=true;
+    throw new Error('先に「接続設定」で合言葉を設定してください');
+  }
+  let res=await api(Object.assign({action,token},extra));
+  if(res.status==='confirm_required'){
+    if(!confirm(res.message+'\n\n続行しますか？'))return null;
+    res=await api(Object.assign({action,token,force:'1'},extra));
+  }
+  return res;
+}
+
+async function loadList(){
+  $('status').textContent='読み込み中…';
+  try{
+    const data=await api({action:'listFoods'});
+    foods=data.foods||[];
+    categories=data.categories||[];
+    $('status').textContent=foods.length+'品目';
+    buildCategorySelect();
+    renderList();
+    update();
+  }catch(e){
+    $('status').textContent='読み込み失敗';
+    showToast('一覧を読み込めません: '+e.message,'error');
+  }
+}
+
+/* ---------- タブ ---------- */
+function showTab(name){
+  const add=name==='add';
+  $('paneAdd').classList.toggle('hidden',!add);
+  $('paneList').classList.toggle('hidden',add);
+  $('tabAdd').classList.toggle('active',add);
+  $('tabList').classList.toggle('active',!add);
+  if(!add)$('listSearch').focus();
+}
+
+/* ---------- 入力モード ---------- */
+function setMode(m){
+  mode=m;
+  $('modePer100').classList.toggle('active',m==='per100');
+  $('modePack').classList.toggle('active',m==='pack');
+  $('baseField').classList.toggle('hidden',m!=='pack');
+  $('unitFromBase').classList.toggle('hidden',m!=='pack');
+  $('nutriLabel').textContent=m==='pack'?'パッケージ表示の栄養成分（基準量あたり）':'100gあたりの栄養成分';
+  update();
+}
+
+function unitFromBase(){
+  const b=toNum($('fBase').value);
+  if(b>0){$('fUnitG').value=fmt(b);update();}
+  else showToast('先に基準量（g）を入力してください','error');
+}
+
+/* ---------- カテゴリ ---------- */
+function buildCategorySelect(){
+  const sel=$('fCat');
+  const prev=sel.value||store.get('dbLastCategory');
+  sel.innerHTML='<option value="">（指定なし：末尾に追加）</option>'+
+    categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(prev&&categories.includes(prev))sel.value=prev;
+}
+function saveCategory(){store.set('dbLastCategory',$('fCat').value);}
+
+/* ---------- 入力値の評価・プレビュー ---------- */
+function evaluate(){
+  const name=$('fName').value.trim();
+  const k=toNum($('fKcal').value),p=toNum($('fP').value),f=toNum($('fF').value),c=toNum($('fC').value);
+  const base=toNum($('fBase').value);
+  const unit=$('fUnit').value.trim();
+  const unitGraw=$('fUnitG').value.trim();
+  const unitG=toNum(unitGraw);
+
+  const errors=[],warns=[];
+  let per100=null,est=null;
+
+  const nums=[k,p,f,c];
+  const filled=nums.every(n=>!isNaN(n));
+  let factor=1,baseOk=true;
+  if(mode==='pack'){
+    if(base>0)factor=100/base; else baseOk=false;
+  }
+
+  if(filled&&baseOk){
+    if(nums.some(n=>n<0))errors.push('負の値は入力できません。');
+    per100={kcal:round1(k*factor),p:round1(p*factor),f:round1(f*factor),c:round1(c*factor)};
+    est=Math.round(per100.p*4+per100.f*9+per100.c*4);
+    if(per100.p+per100.f+per100.c>100.5)errors.push('P+F+Cが100gを超えています。100gあたりの値になっているか確認してください。');
+    if(per100.kcal>1000)errors.push('kcalが大きすぎます（100gあたり1000kcal以下）。');
+    const diff=Math.abs(per100.kcal-est);
+    if(!errors.length&&diff>Math.max(30,est*0.25)){
+      warns.push('入力したkcal（'+fmt(per100.kcal)+'）と、PFCから計算したkcal（約'+est+'）が離れています。数字の入力ミスがないか確認してください。食物繊維やアルコールを多く含む食品では、多少ずれることがあります。');
+    }
+  }
+  if(mode==='pack'&&filled&&!baseOk)errors.push('基準量（g）を入力してください。');
+
+  if(name&&foods.some(x=>x.name===name&&(!editing||x.row!==editing.row))){
+    errors.push('「'+name+'」はすでに登録されています。一覧で確認してください。');
+  }
+  if(name.charAt(0)==='=')errors.push('食品名の先頭に = は使えません。');
+
+  if(unit&&!(unitG>0))errors.push('単位名を入れた場合は、1単位あたりのgも入力してください。');
+  if(!unit&&unitGraw)errors.push('1単位あたりのgを入れた場合は、単位名も入力してください。');
+
+  const ready=!!name&&!!per100&&errors.length===0;
+  return {name,per100,est,errors,warns,unit,unitG,ready,
+    note:$('fNote').value.trim(),category:$('fCat').value};
+}
+
+function update(){
+  const ev=evaluate();
+  const pv=$('preview');
+  if(ev.per100){
+    const x=ev.per100;
+    pv.innerHTML=
+      '<div class="preview-title">登録される値（100gあたり）</div>'+
+      '<div class="metrics">'+
+        '<div class="m-kcal"><div class="metric-label">kcal</div><span class="metric-value">'+fmt(x.kcal)+'</span></div>'+
+        '<div class="m-p"><div class="metric-label">P</div><span class="metric-value">'+fmt(x.p)+'</span><span class="metric-unit">g</span></div>'+
+        '<div class="m-f"><div class="metric-label">F</div><span class="metric-value">'+fmt(x.f)+'</span><span class="metric-unit">g</span></div>'+
+        '<div class="m-c"><div class="metric-label">C</div><span class="metric-value">'+fmt(x.c)+'</span><span class="metric-unit">g</span></div>'+
+      '</div>'+
+      '<div class="check-line">PFCから計算したkcal：約'+ev.est+'　／　入力したkcal：'+fmt(x.kcal)+
+      (ev.unit&&ev.unitG>0?'<br>単位：1'+esc(ev.unit)+' = '+fmt(ev.unitG)+'g（1'+esc(ev.unit)+'あたり約'+Math.round(x.kcal*ev.unitG/100)+'kcal）':'')+
+      '</div>';
+  }else{
+    pv.innerHTML='<div class="preview-empty">kcalとPFCを入力すると、登録される100gあたりの値がここに表示されます</div>';
+  }
+  $('msgs').innerHTML=
+    ev.errors.map(m=>'<div class="msg err">'+esc(m)+'</div>').join('')+
+    ev.warns.map(m=>'<div class="msg warn">'+esc(m)+'</div>').join('');
+  $('submitBtn').disabled=!ev.ready||busy;
+}
+
+/* ---------- 送信 ---------- */
+function buildFoodPayload(ev){
+  return {
+    name:ev.name,
+    kcal:ev.per100.kcal,p:ev.per100.p,f:ev.per100.f,c:ev.per100.c,
+    note:ev.note,
+    unit:ev.unit,unitG:ev.unit?ev.unitG:'',
+    category:ev.category
+  };
+}
+
+function setBusy(b){
+  busy=b;
+  $('submitBtn').disabled=b||!evaluate().ready;
+  $('deleteBtn').disabled=b;
+}
+
+async function submitFood(){
+  const ev=evaluate();
+  if(!ev.ready||busy)return;
+  const payload=JSON.stringify(buildFoodPayload(ev));
+  setBusy(true);
+  const label=$('submitBtn').textContent;
+  $('submitBtn').textContent='送信中…';
+  try{
+    let res;
+    if(editing){
+      res=await callWrite('updateFood',{row:editing.row,orig:editing.name,food:payload});
+    }else{
+      res=await callWrite('addFood',{food:payload});
+    }
+    if(res&&res.status==='ok'){
+      showToast((editing?'更新しました：':'追加しました：')+ev.name,'success');
+      editing=null;
+      resetForm();
+      await loadList();
+    }
+  }catch(e){
+    showToast(e.message,'error');
+  }finally{
+    $('submitBtn').textContent=label;
+    setBusy(false);
+    update();
+  }
+}
+
+async function deleteCurrent(){
+  if(!editing||busy)return;
+  if(!confirm('「'+editing.name+'」を食品DBから削除します。よろしいですか？'))return;
+  setBusy(true);
+  try{
+    const res=await callWrite('deleteFood',{row:editing.row,orig:editing.name});
+    if(res&&res.status==='ok'){
+      showToast('削除しました：'+editing.name,'success');
+      editing=null;
+      resetForm();
+      await loadList();
+    }
+  }catch(e){
+    showToast(e.message,'error');
+  }finally{
+    setBusy(false);
+    update();
+  }
+}
+
+/* ---------- フォーム操作 ---------- */
+function resetForm(){
+  ['fName','fKcal','fP','fF','fC','fBase','fUnit','fUnitG','fNote'].forEach(id=>$(id).value='');
+  editing=null;
+  $('editBanner').classList.add('hidden');
+  $('deleteBtn').classList.add('hidden');
+  $('submitBtn').textContent='追加';
+  $('modePer100').disabled=false;$('modePack').disabled=false;
+  $('fCat').disabled=false;
+  $('catHint').textContent='';
+  buildCategorySelect();
+  setMode('per100');
+}
+
+function startEdit(food){
+  resetForm();
+  editing={row:food.row,name:food.name};
+  $('fName').value=food.name;
+  $('fKcal').value=food.kcal==null?'':fmt(food.kcal);
+  $('fP').value=food.p==null?'':fmt(food.p);
+  $('fF').value=food.f==null?'':fmt(food.f);
+  $('fC').value=food.c==null?'':fmt(food.c);
+  $('fUnit').value=food.unit||'';
+  $('fUnitG').value=food.unitG==null?'':fmt(food.unitG);
+  $('fNote').value=food.note||'';
+  $('fCat').value=food.category&&categories.includes(food.category)?food.category:'';
+  $('fCat').disabled=true;
+  $('catHint').textContent='カテゴリの変更はスプレッドシート上で行ってください。';
+  $('modePer100').disabled=true;$('modePack').disabled=true;
+  $('editBannerText').textContent='「'+food.name+'」を編集中';
+  $('editBanner').classList.remove('hidden');
+  $('deleteBtn').classList.remove('hidden');
+  $('submitBtn').textContent='変更を保存';
+  showTab('add');
+  window.scrollTo({top:0});
+  update();
+}
+
+function cancelEdit(){resetForm();update();}
+
+/* ---------- 一覧 ---------- */
+function renderList(){
+  const q=$('listSearch').value.trim().toLowerCase();
+  const nameCount={};
+  foods.forEach(x=>{nameCount[x.name]=(nameCount[x.name]||0)+1;});
+  const hits=q?foods.filter(x=>x.name.toLowerCase().includes(q)):foods;
+  const LIMIT=60;
+  const el=$('foodList');
+  if(!hits.length){el.innerHTML='<div class="empty">'+(foods.length?'該当する食品がありません':'食品がありません')+'</div>';return;}
+  el.innerHTML=hits.slice(0,LIMIT).map(x=>{
+    const i=foods.indexOf(x);
+    const meta=(x.kcal==null?'−':fmt(x.kcal))+'kcal｜P'+(x.p==null?'−':fmt(x.p))+' F'+(x.f==null?'−':fmt(x.f))+' C'+(x.c==null?'−':fmt(x.c))+
+      (x.unit?'｜1'+esc(x.unit)+'='+(x.unitG==null?'?':fmt(x.unitG))+'g':'');
+    return '<button type="button" class="food-item" onclick="startEdit(foods['+i+'])">'+
+      '<div class="food-name">'+esc(x.name)+(nameCount[x.name]>1?'<span class="badge">重複</span>':'')+'</div>'+
+      '<div class="food-meta">'+esc(x.category||'')+'｜'+meta+'</div></button>';
+  }).join('')+(hits.length>LIMIT?'<div class="more">ほか'+(hits.length-LIMIT)+'件。検索で絞り込んでください</div>':'');
+}
+
+/* ---------- 設定 ---------- */
+async function saveSettings(){
+  const url=$('setUrl').value.trim();
+  const tk=$('setToken').value.trim();
+  if(!url.startsWith('https://script.google.com/')){showToast('GAS のURLではありません','error');return;}
+  if(!tk){showToast('合言葉を入力してください','error');return;}
+  const prevUrl=gasUrl;
+  gasUrl=url;
+  try{
+    await api({action:'checkToken',token:tk});
+    token=tk;
+    store.set('gasUrl',url);
+    store.set('dbAdminToken',tk);
+    $('settings').open=false;
+    showToast('接続を確認しました','success');
+    loadList();
+  }catch(e){
+    gasUrl=prevUrl;
+    showToast('確認できません: '+e.message,'error');
+  }
+}
+
+/* ---------- 起動 ---------- */
+$('setUrl').value=gasUrl;
+$('setToken').value=token;
+if(!token)$('settings').open=true;
+resetForm();
+update();
+loadList();
+</script>
+</body>
+</html>

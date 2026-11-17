@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食事・体重の推移</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --accent: #2a78d6;
+    --green: #3a9e5f;
+    --amber: #e6a02a;
+    --blue: #3a7bd5;
+    --orange: #e06c3a;
+    --danger: #d03b3b;
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --surface2: #f9f9f7;
+    --border: rgba(0,0,0,0.1);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --text2: #52514e;
+    --text3: #898781;
+    --radius: 8px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a19;
+      --surface: #242422;
+      --surface2: #2c2c2a;
+      --border: rgba(255,255,255,0.1);
+      --border-strong: rgba(255,255,255,0.18);
+      --text: #f0efec;
+      --text2: #c3c2b7;
+      --text3: #a09e96;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 520px; margin: 0 auto; padding: 16px 12px 60px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .title { font-size: 15px; font-weight: 600; }
+  .btn { font: inherit; font-size: 12px; padding: 7px 12px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .tabs { display: grid; grid-template-columns: repeat(3,1fr); border: 0.5px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; background: var(--surface); margin-bottom: 10px; }
+  .tab { font: inherit; font-size: 13px; font-weight: 600; padding: 10px; border: none; background: transparent; color: var(--text2); cursor: pointer; }
+  .tab.active { background: var(--accent); color: #fff; }
+
+  .nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .nav-label { font-size: 14px; font-weight: 600; text-align: center; flex: 1; font-variant-numeric: tabular-nums; }
+  .nav-sub { font-size: 11px; color: var(--text3); font-weight: 400; display: block; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .card-title { font-size: 11px; font-weight: 600; color: var(--text3); margin-bottom: 10px; letter-spacing: 0.03em; }
+  .chart-box { position: relative; height: 190px; }
+  .chart-box.short { height: 160px; }
+  .note { font-size: 11px; color: var(--text3); line-height: 1.6; margin-top: 8px; }
+
+  .judge { display: inline-block; font-size: 14px; font-weight: 600; padding: 6px 12px; border-radius: 20px; margin-bottom: 12px; }
+  .j-green { background: rgba(58,158,95,0.15); color: var(--green); }
+  .j-amber { background: rgba(230,160,42,0.18); color: #b7791f; }
+  .j-blue  { background: rgba(58,123,213,0.15); color: var(--blue); }
+  .j-red   { background: rgba(208,59,59,0.14); color: var(--danger); }
+  .j-orange { background: rgba(224,108,58,0.16); color: var(--orange); }
+  .j-gray  { background: var(--surface2); color: var(--text3); }
+  @media (prefers-color-scheme: dark) { .j-amber { color: #e6b65a; } }
+
+  .meter { margin-bottom: 12px; }
+  .meter-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .meter-head b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .meter-track { position: relative; height: 8px; background: var(--surface2); border: 0.5px solid var(--border); border-radius: 4px; overflow: visible; }
+  .meter-fill { height: 100%; border-radius: 4px; }
+  .meter-tick { position: absolute; top: -3px; height: 14px; width: 1.5px; background: var(--text3); left: 66.7%; }
+  .meter-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip { font-size: 12px; padding: 4px 10px; border-radius: 14px; font-weight: 600; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+  .kv > div { background: var(--surface2); border-radius: var(--radius); padding: 8px 10px; }
+  .kv .k { font-size: 10px; color: var(--text3); }
+  .kv .v { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kv .u { font-size: 10px; color: var(--text3); font-weight: 400; margin-left: 2px; }
+
+  .advice-sum { font-size: 14px; line-height: 1.65; margin-bottom: 10px; }
+  .actions { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .actions li { font-size: 13px; line-height: 1.55; padding: 9px 12px; background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 4px; }
+  .actions .lab { font-size: 10px; font-weight: 700; color: var(--accent); display: block; margin-bottom: 1px; }
+
+  .empty { text-align: center; color: var(--text3); font-size: 13px; padding: 18px 0; line-height: 1.7; }
+  .legend-note { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--text3); margin-top: 8px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .band { display: inline-block; width: 14px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+  details.box { margin-top: 12px; background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+  details.box summary { font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; }
+  details.box .field { margin-top: 10px; }
+  details.box label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  details.box input { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; }
+  details.box input:focus { border-color: var(--accent); }
+  details.box ul { margin: 8px 0 0 16px; font-size: 11px; color: var(--text2); line-height: 1.8; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1a1a18; color: #f0efec; font-size: 13px; padding: 10px 20px; border-radius: 20px; opacity: 0; transition: transform 0.25s, opacity 0.25s; max-width: 92vw; text-align: center; z-index: 999; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.success { background: #1e5c38; }
+  .toast.error { background: #7a1f1f; }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <span class="title">食事・体重の推移</span>
+    <button class="btn" id="reloadBtn" onclick="loadData()">更新</button>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" id="tab-day"   role="tab" onclick="setTab('day')">日</button>
+    <button class="tab"        id="tab-week"  role="tab" onclick="setTab('week')">7日</button>
+    <button class="tab"        id="tab-month" role="tab" onclick="setTab('month')">30日</button>
+  </div>
+
+  <div class="nav">
+    <button class="btn" id="prevBtn" onclick="shift(-1)" aria-label="前へ">◀</button>
+    <div class="nav-label" id="navLabel">—</div>
+    <button class="btn" id="nextBtn" onclick="shift(1)" aria-label="次へ">▶</button>
+  </div>
+
+  <div id="main">
+    <div class="empty" id="loading">読み込み中…</div>
+  </div>
+
+  <details class="box" id="settings">
+    <summary>接続設定</summary>
+    <div class="field">
+      <label for="setUrl">GAS Web App URL</label>
+      <input type="text" id="setUrl" placeholder="https://script.google.com/macros/s/...">
+    </div>
+    <div class="field">
+      <label for="setToken">合言葉（ADMIN_TOKEN）</label>
+      <input type="text" id="setToken" autocomplete="off" style="-webkit-text-security:disc">
+      <div class="note">体重などの個人データを読み出すため、合言葉が必要です。この端末にだけ保存されます。</div>
+    </div>
+    <button class="btn" style="margin-top:10px" onclick="saveSettings()">保存して読み込む</button>
+  </details>
+
+  <details class="box">
+    <summary>評価の根拠</summary>
+    <ul>
+      <li>目標kcal・タンパク質目標・複合判定：スプレッドシート（設定シート）の設計。Murphy &amp; Koehler 2022、Morton et al. 2018 ほか</li>
+      <li>体重の減少ペース：週あたり体重の約0.7%減を目安（Garthe et al. 2011, Int J Sport Nutr Exerc Metab。対象はエリートアスリートで小規模。長期では差がないとの追跡報告もあるため、目安として表示）</li>
+      <li>脂質20〜30%E・炭水化物50〜65%Eの参考帯：日本人の食事摂取基準（2020年版）の目標範囲。判定には使いません</li>
+      <li>体重は日々変動するため、7日移動平均で傾向を見ます。自動表示であり、医療上の助言ではありません。</li>
+    </ul>
+  </details>
+
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const GAS_URL_DEFAULT='https://script.google.com/macros/s/AKfycbzFEl6-kNb45G-qpV1NlRfbaBJUOisWdiVBQmsWB6qqeAbEAbZGiDvqYi5o546_ExY9Rg/exec';
+
+const store={
+  mem:{},
+  get(k){try{return localStorage.getItem(k)||'';}catch(e){return this.mem[k]||'';}},
+  set(k,v){try{localStorage.setItem(k,v);}catch(e){this.mem[k]=v;}}
+};
+let gasUrl=store.get('gasUrl')||GAS_URL_DEFAULT;
+let token=store.get('dbAdminToken')||'';
+
+let days=[];                 // 日次ログ（古い順）
+let byDate=new Map();
+let tab='day';               // 'day' | 'week' | 'month'
+let anchor=null;             // 表示の終了日 'yyyy-MM-dd'
+let charts={};
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ===== 日付ユーティリティ（UTC計算で端末のタイムゾーンに依存しない） ===== */
+const toMs=s=>{const [y,m,d]=s.split('-').map(Number);return Date.UTC(y,m-1,d);};
+const toStr=ms=>new Date(ms).toISOString().slice(0,10);
+const addDays=(s,n)=>toStr(toMs(s)+n*86400000);
+const todayJst=()=>toStr(Date.now()+9*3600*1000);
+const WD=['日','月','火','水','木','金','土'];
+const wday=s=>WD[new Date(toMs(s)).getUTCDay()];
+const md=s=>{const p=s.split('-');return `${Number(p[1])}/${Number(p[2])}`;};
+function range(end,n){const out=[];for(let i=n-1;i>=0;i--)out.push(addDays(end,-i));return out;}
+
+/* ===== 数値ユーティリティ ===== */
+const isNum=v=>typeof v==='number'&&!isNaN(v);
+const r0=v=>Math.round(v);
+const r1=v=>Math.round(v*10)/10;
+const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null;
+const sign=v=>(v>0?'+':'')+v;
+
+/* ===== 集計ロジック（画面に依存しない部分） ===== */
+const val=(d,k)=>{const r=byDate.get(d);return r&&isNum(r[k])?r[k]:null;};
+
+// 7日移動平均（直近7暦日のうち体重のある日が2日以上のとき）
+function weightMA(d){
+  const ws=range(d,7).map(x=>val(x,'weight')).filter(isNum);
+  return ws.length>=2?mean(ws):null;
+}
+// 直近1週間の体重変化率（%）：移動平均の d と d-7日 の比較
+function weeklyRate(d){
+  const a=weightMA(d),b=weightMA(addDays(d,-7));
+  return (a!==null&&b!==null&&b>0)?r1((a-b)/b*100):null;
+}
+function rateLabel(r){
+  if(r===null)return null;
+  if(r<-1.0)return '減少ペースが速めです（目安は週0.7%減以内）';
+  if(r<-0.7)return '目安（週0.7%減）をやや超えています';
+  if(r<=-0.1)return '目安内のペースで減少しています';
+  if(r<0.3)return 'ほぼ横ばいです';
+  return '増加傾向です';
+}
+function judgeClass(j){
+  if(!j)return 'j-gray';
+  if(j.startsWith('🟢'))return 'j-green';
+  if(j.startsWith('🟡'))return 'j-amber';
+  if(j.startsWith('🔵'))return 'j-blue';
+  if(j.startsWith('🔴'))return 'j-red';
+  if(j.startsWith('🟠'))return 'j-orange';
+  return 'j-gray';
+}
+const judgeIcon=j=>j?Array.from(j)[0]:'';
+
+function windowRows(end,n){
+  return range(end,n).map(d=>byDate.get(d)).filter(r=>r&&isNum(r.kcal)&&r.kcal>0);
+}
+
+// 総評とネクストアクション（ルールベース。最大：総評1文＋アクション2つ）
+function advise(end,W){
+  const rows=windowRows(end,W);
+  const n=rows.length;
+  const need=Math.ceil(W/2);
+  if(n<need){
+    return {summary:`直近${W}日の記録が${n}日分のため、傾向の判断は控えます。`,
+      actions:[`まずは毎日の記録を続けましょう（目安：${W}日中${need}日以上）。`]};
+  }
+  const bal=rows.map(r=>r.balance).filter(isNum);
+  const avgBal=bal.length?r0(mean(bal)):null;
+  const pa=rows.map(r=>r.pAch).filter(isNum);
+  const avgPA=pa.length?r0(mean(pa)):null;
+  const pTargets=rows.map(r=>r.pTarget).filter(isNum);
+  const pVals=rows.map(r=>r.p).filter(isNum);
+  const pGap=(pTargets.length&&pVals.length)?r0(mean(pTargets)-mean(pVals)):null;
+  const red=rows.filter(r=>r.judge.startsWith('🔴')).length;
+  const bigDeficit=rows.filter(r=>r.judge.includes('大赤字')).length;
+  const dual=rows.filter(r=>r.judge.startsWith('🟠')).length;
+  const surplus=rows.filter(r=>r.judge.startsWith('🔵')).length;
+  const rate=weeklyRate(end);
+  const wDays=range(end,W).filter(d=>val(d,'weight')!==null).length;
+
+  let summary;
+  if(red>0)summary=`筋破壊リスクの判定が${red}日ありました。`;
+  else if(dual>0)summary=`大赤字とタンパク質不足が重なった日が${dual}日ありました。`;
+  else if(avgPA!==null&&avgPA<90)summary=`タンパク質が目標の平均${avgPA}%で、不足気味です。`;
+  else if(avgBal!==null&&avgBal>100)summary=`平均で${avgBal}kcalの余剰（目標超過）です。`;
+  else if(rate!==null&&rate<-1.0)summary=`体重の減少ペースが速めです（週${rate}%）。`;
+  else summary=`目標に沿って進んでいます（平均収支${avgBal!==null?sign(avgBal)+'kcal':'—'}、P達成率${avgPA!==null?avgPA+'%':'—'}）。`;
+
+  const actions=[];
+  if(red>0||bigDeficit>0)actions.push(`赤字が大きい日（${Math.max(red,bigDeficit)}日）の摂取kcalを、目標に近づける。`);
+  if((dual>0||(avgPA!==null&&avgPA<90))&&pGap!==null&&pGap>0)actions.push(`タンパク質を1日あたり平均${pGap}g増やす（不足分）。`);
+  if(avgBal!==null&&avgBal>100&&surplus>0)actions.push(`余剰が出た日（${surplus}日）の主食・脂質の量を調整する。`);
+  if(rate!==null&&rate<-1.0&&!actions.length)actions.push('摂取kcalを目標まで戻し、週あたりの減少を体重の0.7%以内に収める。');
+  if(wDays<need)actions.push('体重を毎朝同じ条件で測る（7日移動平均が安定して見やすくなります）。');
+  if(!actions.length)actions.push('今の食事内容と記録の習慣を維持する。');
+  return {summary,actions:actions.slice(0,2)};
+}
+
+/* ===== 通信 ===== */
+async function api(params){
+  const res=await fetch(gasUrl+'?'+new URLSearchParams(params).toString());
+  const data=await res.json();
+  if(data.status==='error')throw new Error(data.message);
+  return data;
+}
+let toastTimer=null;
+function showToast(msg,type=''){
+  const t=$('toast');t.textContent=msg;t.className='toast'+(type?' '+type:'');
+  void t.offsetWidth;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+async function loadData(){
+  if(!token){$('settings').open=true;$('main').innerHTML='<div class="empty">「接続設定」で合言葉を入力してください</div>';return;}
+  $('reloadBtn').disabled=true;
+  try{
+    const res=await api({action:'getDaily',token});
+    days=(res.days||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+    byDate=new Map(days.map(d=>[d.date,d]));
+    const withKcal=days.filter(d=>isNum(d.kcal)&&d.kcal>0);
+    const latest=withKcal.length?withKcal[withKcal.length-1].date:(days.length?days[days.length-1].date:todayJst());
+    if(!anchor||anchor>todayJst())anchor=latest;
+    if(!days.length){$('main').innerHTML='<div class="empty">表示できる記録がありません</div>';updateNav();return;}
+    render();
+  }catch(e){
+    $('main').innerHTML=`<div class="empty">読み込めませんでした<br><small>${esc(e.message)}</small></div>`;
+    if(/認証|ADMIN_TOKEN/.test(e.message))$('settings').open=true;
+  }finally{
+    $('reloadBtn').disabled=false;
+  }
+}
+
+async function saveSettings(){
+  const url=$('setUrl').value.trim(),tk=$('setToken').value.trim();
+  if(!url.startsWith('https://script.google.com/')){showToast('GAS のURLではありません','error');return;}
+  if(!tk){showToast('合言葉を入力してください','error');return;}
+  gasUrl=url;token=tk;
+  store.set('gasUrl',url);store.set('dbAdminToken',tk);
+  $('settings').open=false;
+  await loadData();
+}
+
+/* ===== タブ・日付移動 ===== */
+const SPAN={day:1,week:7,month:30};
+const CHART_DAYS={day:14,week:7,month:30};
+function setTab(t){
+  tab=t;
+  ['day','week','month'].forEach(x=>$('tab-'+x).classList.toggle('active',x===t));
+  if(days.length)render();
+}
+function shift(dir){
+  const step=SPAN[tab];
+  const next=addDays(anchor,dir*step);
+  if(next>todayJst())anchor=todayJst();else anchor=next;
+  render();
+}
+function updateNav(){
+  const n=SPAN[tab];
+  if(tab==='day'){
+    $('navLabel').innerHTML=`${Number(anchor.slice(5,7))}月${Number(anchor.slice(8))}日（${wday(anchor)}）`;
+  }else{
+    $('navLabel').innerHTML=`${md(addDays(anchor,-(n-1)))} 〜 ${md(anchor)}<span class="nav-sub">直近${n}日</span>`;
+  }
+  $('nextBtn').disabled=anchor>=todayJst();
+  $('prevBtn').disabled=!days.length||anchor<=days[0].date;
+}
+
+/* ===== 描画 ===== */
+function meter(label,valueHtml,ratio,color,sub){
+  const w=Math.max(0,Math.min(ratio,1.5))/1.5*100;
+  return `<div class="meter"><div class="meter-head"><span>${label}</span><b>${valueHtml}</b></div>
+    <div class="meter-track"><div class="meter-fill" style="width:${w}%;background:${color}"></div><div class="meter-tick"></div></div>
+    ${sub?`<div class="meter-sub">${sub}</div>`:''}</div>`;
+}
+
+function evalDayHtml(r){
+  if(!r||!isNum(r.kcal)||r.kcal<=0)return '<div class="empty">この日の食事記録はありません</div>';
+  const kRatio=isNum(r.target)&&r.target>0?r.kcal/r.target:0;
+  const pRatio=isNum(r.pAch)?r.pAch/100:0;
+  let h=`<span class="judge ${judgeClass(r.judge)}">${esc(r.judge||'判定なし')}</span>`;
+  h+=meter('摂取カロリー',`${r0(r.kcal)}<small style="font-weight:400;font-size:11px"> / 目標 ${isNum(r.target)?r0(r.target):'—'} kcal</small>`,kRatio,'var(--orange)',
+    `収支 ${isNum(r.balance)?sign(r.balance)+' kcal':'—'}${r.type?`（${esc(r.type)}）`:''}`);
+  h+=meter('タンパク質',`${isNum(r.p)?r1(r.p):'—'}<small style="font-weight:400;font-size:11px"> / 目標 ${isNum(r.pTarget)?r.pTarget:'—'} g</small>`,pRatio,'var(--green)',
+    `達成率 ${isNum(r.pAch)?r0(r.pAch)+'%':'—'}`);
+  h+=`<div class="kv">
+    <div><div class="k">脂質 F</div><div class="v">${isNum(r.f)?r1(r.f):'—'}<span class="u">g${isNum(r.fPct)?`（${r0(r.fPct)}%）`:''}</span></div></div>
+    <div><div class="k">炭水化物 C</div><div class="v">${isNum(r.c)?r1(r.c):'—'}<span class="u">g${isNum(r.cPct)?`（${r0(r.cPct)}%）`:''}</span></div></div>
+  </div>`;
+  return h;
+}
+
+function evalRangeHtml(end,n){
+  const rows=windowRows(end,n);
+  if(!rows.length)return '<div class="empty">この期間の食事記録はありません</div>';
+  const counts={};
+  rows.forEach(r=>{const i=judgeIcon(r.judge)||'—';counts[i]=(counts[i]||0)+1;});
+  const cls={'🟢':'j-green','🟡':'j-amber','🟠':'j-orange','🔵':'j-blue','🔴':'j-red'};
+  const chips=Object.keys(counts).sort().map(i=>`<span class="chip ${cls[i]||'j-gray'}">${i} ${counts[i]}日</span>`).join('');
+  const avgK=mean(rows.map(r=>r.kcal));
+  const tg=rows.map(r=>r.target).filter(isNum);
+  const avgT=tg.length?mean(tg):null;
+  const bal=rows.map(r=>r.balance).filter(isNum);
+  const pa=rows.map(r=>r.pAch).filter(isNum);
+  const avgPA=pa.length?mean(pa):null;
+  const ok=pa.filter(x=>x>=90).length;
+  const fp=rows.map(r=>r.fPct).filter(isNum),cp=rows.map(r=>r.cPct).filter(isNum),pp=rows.map(r=>r.pPct).filter(isNum);
+  let h=`<div class="note" style="margin:0 0 8px">記録 ${rows.length}日 / ${n}日</div><div class="chips">${chips}</div>`;
+  h+=meter('平均摂取カロリー',`${r0(avgK)}<small style="font-weight:400;font-size:11px"> / 目標平均 ${avgT!==null?r0(avgT):'—'} kcal</small>`,avgT?avgK/avgT:0,'var(--orange)',
+    `平均収支 ${bal.length?sign(r0(mean(bal)))+' kcal':'—'}`);
+  h+=meter('タンパク質 平均達成率',`${avgPA!==null?r0(avgPA)+'%':'—'}`,avgPA!==null?avgPA/100:0,'var(--green)',
+    `達成率90%以上の日：${ok}日 / ${pa.length}日`);
+  h+=`<div class="kv">
+    <div><div class="k">平均 F 比率</div><div class="v">${fp.length?r0(mean(fp)):'—'}<span class="u">%（参考 20〜30）</span></div></div>
+    <div><div class="k">平均 C 比率</div><div class="v">${cp.length?r0(mean(cp)):'—'}<span class="u">%（参考 50〜65）</span></div></div>
+  </div>`;
+  return h;
+}
+
+/* ----- グラフ ----- */
+const bandPlugin={
+  id:'bands',
+  beforeDatasetsDraw(chart,args,opts){
+    const {ctx,chartArea,scales}=chart;if(!opts||!opts.bands)return;
+    opts.bands.forEach(b=>{
+      const y1=scales.y.getPixelForValue(b.max),y2=scales.y.getPixelForValue(b.min);
+      ctx.save();ctx.fillStyle=b.color;ctx.fillRect(chartArea.left,y1,chartArea.right-chartArea.left,y2-y1);ctx.restore();
+    });
+  }
+};
+function css(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+function mkChart(id,cfg){
+  if(charts[id])charts[id].destroy();
+  charts[id]=new Chart($(id),cfg);
+}
+function baseOptions(extra){
+  const text=css('--text2'),grid=css('--border');
+  const o={
+    responsive:true,maintainAspectRatio:false,animation:{duration:250},
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:text,maxRotation:0,autoSkip:true,maxTicksLimit:8,font:{size:10}},grid:{display:false}},
+      y:{ticks:{color:text,font:{size:10}},grid:{color:grid}}
+    }
+  };
+  return Object.assign(o,extra||{});
+}
+
+function drawCharts(end,n){
+  const dates=range(end,n);
+  const labels=dates.map(md);
+  const series=k=>dates.map(d=>val(d,k));
+
+  // 体重（点＝日々の値、線＝7日移動平均）
+  mkChart('cWeight',{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'体重',data:series('weight'),showLine:false,pointRadius:3,pointBackgroundColor:'rgba(42,120,214,0.45)',borderColor:'rgba(42,120,214,0.45)'},
+      {label:'7日移動平均',data:dates.map(weightMA),borderColor:'#2a78d6',borderWidth:2.5,pointRadius:0,tension:0.3,spanGaps:true}
+    ]},
+    options:baseOptions()
+  });
+
+  // 摂取kcal（棒）と目標（線）
+  mkChart('cKcal',{
+    type:'bar',
+    data:{labels,datasets:[
+      {type:'bar',label:'摂取kcal',data:series('kcal'),backgroundColor:'rgba(224,108,58,0.75)',borderRadius:3},
+      {type:'line',label:'目標kcal',data:series('target'),borderColor:css('--text2'),borderDash:[4,3],borderWidth:1.5,pointRadius:0,stepped:true,spanGaps:true}
+    ]},
+    options:baseOptions()
+  });
+
+  // タンパク質g（棒）と目標（線）
+  mkChart('cProtein',{
+    type:'bar',
+    data:{labels,datasets:[
+      {type:'bar',label:'P(g)',data:series('p'),backgroundColor:'rgba(58,158,95,0.75)',borderRadius:3},
+      {type:'line',label:'P目標(g)',data:series('pTarget'),borderColor:css('--text2'),borderDash:[4,3],borderWidth:1.5,pointRadius:0,stepped:true,spanGaps:true}
+    ]},
+    options:baseOptions()
+  });
+
+  // PFC比率（kcal%）。F 20〜30%、C 50〜65% の参考帯
+  const opts=baseOptions();
+  opts.scales.y.min=0;opts.scales.y.suggestedMax=70;
+  opts.scales.y.ticks.callback=v=>v+'%';
+  opts.plugins.bands={bands:[
+    {min:20,max:30,color:'rgba(230,160,42,0.16)'},
+    {min:50,max:65,color:'rgba(58,123,213,0.14)'}
+  ]};
+  mkChart('cPfc',{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'P%',data:series('pPct'),borderColor:'#3a9e5f',backgroundColor:'#3a9e5f',borderWidth:2,pointRadius:2,tension:0.25,spanGaps:true},
+      {label:'F%',data:series('fPct'),borderColor:'#e6a02a',backgroundColor:'#e6a02a',borderWidth:2,pointRadius:2,tension:0.25,spanGaps:true},
+      {label:'C%',data:series('cPct'),borderColor:'#3a7bd5',backgroundColor:'#3a7bd5',borderWidth:2,pointRadius:2,tension:0.25,spanGaps:true}
+    ]},
+    options:opts,
+    plugins:[bandPlugin]
+  });
+}
+
+function weightSummaryHtml(end,n){
+  const dates=range(end,n);
+  const ws=dates.map(d=>val(d,'weight')).filter(isNum);
+  const ma=weightMA(end),rate=weeklyRate(end);
+  const bfs=dates.map(d=>val(d,'bf')).filter(isNum);
+  if(!ws.length&&ma===null)return '<div class="note" style="margin:0 0 8px">この期間の体重記録はありません</div>';
+  const last=[...dates].reverse().map(d=>val(d,'weight')).find(isNum);
+  let h=`<div class="kv" style="margin-bottom:8px">
+    <div><div class="k">直近の体重</div><div class="v">${last!==undefined?r1(last):'—'}<span class="u">kg</span></div></div>
+    <div><div class="k">7日移動平均</div><div class="v">${ma!==null?r1(ma):'—'}<span class="u">kg</span></div></div>
+    <div><div class="k">直近1週間の変化</div><div class="v">${rate!==null?sign(rate):'—'}<span class="u">%/週</span></div></div>
+    <div><div class="k">体脂肪率</div><div class="v">${bfs.length?r1(bfs[bfs.length-1]):'—'}<span class="u">%</span></div></div>
+  </div>`;
+  if(rate!==null)h+=`<div class="note" style="margin:0 0 8px">${rateLabel(rate)}</div>`;
+  return h;
+}
+
+function render(){
+  if(!anchor)return;
+  updateNav();
+  const span=SPAN[tab],chartN=CHART_DAYS[tab];
+  const adviceW=tab==='month'?30:7;
+  const adv=advise(anchor,adviceW);
+
+  const evalHtml=tab==='day'?evalDayHtml(byDate.get(anchor)):evalRangeHtml(anchor,span);
+  const evalTitle=tab==='day'?'この日の評価':`直近${span}日の評価`;
+  const chartNote=tab==='day'?'直近14日の推移':`直近${chartN}日の推移`;
+
+  $('main').innerHTML=`
+    <div class="card"><div class="card-title">${evalTitle}</div>${evalHtml}</div>
+
+    <div class="card"><div class="card-title">体重（${chartNote}）</div>
+      ${weightSummaryHtml(anchor,chartN)}
+      <div class="chart-box"><canvas id="cWeight"></canvas></div>
+      <div class="legend-note"><span><span class="dot" style="background:rgba(42,120,214,0.45)"></span>日々の体重</span><span><span class="dot" style="background:#2a78d6"></span>7日移動平均</span></div>
+    </div>
+
+    <div class="card"><div class="card-title">摂取カロリー（${chartNote}）</div>
+      <div class="chart-box short"><canvas id="cKcal"></canvas></div>
+      <div class="legend-note"><span><span class="dot" style="background:rgba(224,108,58,0.75)"></span>摂取kcal</span><span>┄ 目標kcal</span></div>
+    </div>
+
+    <div class="card"><div class="card-title">タンパク質（${chartNote}）</div>
+      <div class="chart-box short"><canvas id="cProtein"></canvas></div>
+      <div class="legend-note"><span><span class="dot" style="background:rgba(58,158,95,0.75)"></span>P(g)</span><span>┄ 目標</span></div>
+    </div>
+
+    <div class="card"><div class="card-title">PFCバランスの推移（kcal比率）</div>
+      <div class="chart-box"><canvas id="cPfc"></canvas></div>
+      <div class="legend-note">
+        <span><span class="dot" style="background:#3a9e5f"></span>P</span>
+        <span><span class="dot" style="background:#e6a02a"></span>F</span>
+        <span><span class="dot" style="background:#3a7bd5"></span>C</span>
+        <span><span class="band" style="background:rgba(230,160,42,0.35)"></span>F参考帯 20〜30%</span>
+        <span><span class="band" style="background:rgba(58,123,213,0.3)"></span>C参考帯 50〜65%</span>
+      </div>
+      <div class="note">帯は日本人の食事摂取基準（2020年版）の目標範囲です。判定には使っていません。</div>
+    </div>
+
+    <div class="card"><div class="card-title">総評とネクストアクション（直近${adviceW}日）</div>
+      <div class="advice-sum">${esc(adv.summary)}</div>
+      <ul class="actions">${adv.actions.map((a,i)=>`<li><span class="lab">NEXT ${i+1}</span>${esc(a)}</li>`).join('')}</ul>
+    </div>`;
+
+  drawCharts(anchor,chartN);
+}
+
+/* ===== 起動 ===== */
+$('setUrl').value=gasUrl;
+$('setToken').value=token;
+loadData();
+</script>
+</body>
+</html>
