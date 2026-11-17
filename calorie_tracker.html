@@ -102,6 +102,19 @@
   .btn-danger { color: var(--danger); border-color: var(--danger); }
   .btn-danger:hover { background: #fff0f0; }
 
+  /* 入力方法の切り替え・手入力 */
+  .mode-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+  .mode-seg button { font-size: 13px; padding: 9px 6px; border-radius: var(--radius); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text2); cursor: pointer; font-family: inherit; }
+  .mode-seg button.active { border-color: var(--accent); color: var(--accent); background: var(--surface2); font-weight: 600; }
+  .manual-input { width: 100%; font-size: 16px; padding: 10px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; font-family: inherit; }
+  .manual-input:focus { border-color: var(--accent); }
+  .manual-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-top: 8px; }
+  .manual-grid label { display: block; font-size: 11px; text-align: center; margin-bottom: 3px; font-weight: 600; }
+  .manual-grid input { text-align: center; padding: 10px 4px; }
+  .manual-hint { font-size: 11px; color: var(--text3); margin-top: 6px; line-height: 1.5; }
+  .manual-hint.warn { color: var(--amber); }
+  .manual-badge { font-size: 9px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; background: var(--surface2); border: 0.5px solid var(--border-strong); color: var(--text2); font-weight: 600; }
+
   /* ミールタブ */
   .meal-tabs { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
   .meal-tab { font-size: 11px; padding: 5px 12px; border-radius: 20px; border: 0.5px solid var(--border-strong); background: var(--surface); color: var(--text2); cursor: pointer; }
@@ -173,11 +186,19 @@
   </div>
 
   <hr class="divider">
-  <div class="section-label">食品を検索・追加</div>
+  <div class="section-label">食品を追加</div>
   <div class="search-wrap">
-    <input type="text" id="foodSearch" class="input-field" placeholder="食品名を入力（例：鶏むね、卵、うどん）" autocomplete="off">
-    <div class="error-msg" id="foodErr">食品を選択してください</div>
-    <div id="dropdown" class="dropdown"></div>
+    <div class="mode-seg">
+      <button type="button" id="modeDb" class="active" onclick="setInputMode('db')">DBから選ぶ</button>
+      <button type="button" id="modeManual" onclick="setInputMode('manual')">手入力（外食など）</button>
+    </div>
+
+    <div id="dbMode">
+      <input type="text" id="foodSearch" class="input-field" placeholder="食品名を入力（例：鶏むね、卵、うどん）" autocomplete="off">
+      <div class="error-msg" id="foodErr">食品を選択してください</div>
+      <div id="dropdown" class="dropdown"></div>
+    </div>
+
     <div class="amount-row" style="margin-bottom:6px">
       <span class="amount-label">食事区分：</span>
       <select id="mealSelect" class="unit-select" style="flex:1">
@@ -187,23 +208,33 @@
         <option value="snack">間食</option>
       </select>
     </div>
-    <div class="amount-row">
-      <span class="amount-label">量：</span>
-      <input type="number" id="amountInput" class="amount-input" min="0.1" step="0.1" value="100" placeholder="100">
-      <select id="unitSelect" class="unit-select">
-        <option value="g">g</option>
-        <option value="ml">ml</option>
-        <option value="個">個</option>
-        <option value="枚">枚</option>
-        <option value="パック">パック</option>
-        <option value="杯">杯</option>
-        <option value="人前">人前</option>
-        <option value="切れ">切れ</option>
-        <option value="本">本</option>
-      </select>
+
+    <div id="dbAmount">
+      <div class="amount-row">
+        <span class="amount-label">量：</span>
+        <input type="number" id="amountInput" class="amount-input" min="0.1" step="0.1" value="100" placeholder="100">
+        <select id="unitSelect" class="unit-select">
+          <option value="g">g</option>
+          <option value="ml">ml</option>
+        </select>
+      </div>
+      <div class="error-msg" id="amountErr">0より大きい数値を入力してください</div>
+      <button class="btn btn-primary" onclick="addFood()">追加</button>
     </div>
-    <div class="error-msg" id="amountErr">0より大きい数値を入力してください</div>
-    <button class="btn btn-primary" onclick="addFood()">追加</button>
+
+    <div id="manualMode" style="display:none">
+      <input type="text" id="mName" class="manual-input" placeholder="名前（例：ラーメン、デリバリーのピザ）" autocomplete="off" oninput="updateManualHint()">
+      <div class="manual-grid">
+        <div><label style="color:var(--orange)" for="mKcal">kcal</label><input type="text" id="mKcal" class="manual-input" inputmode="decimal" placeholder="0" oninput="updateManualHint()"></div>
+        <div><label style="color:var(--green)" for="mP">P(g)</label><input type="text" id="mP" class="manual-input" inputmode="decimal" placeholder="0" oninput="updateManualHint()"></div>
+        <div><label style="color:var(--amber)" for="mF">F(g)</label><input type="text" id="mF" class="manual-input" inputmode="decimal" placeholder="0" oninput="updateManualHint()"></div>
+        <div><label style="color:var(--blue)" for="mC">C(g)</label><input type="text" id="mC" class="manual-input" inputmode="decimal" placeholder="0" oninput="updateManualHint()"></div>
+      </div>
+      <div class="manual-hint">食べた分の合計値を入力してください（100gあたりではありません）。kcal・P・F・Cはすべて必須です。</div>
+      <div class="manual-hint" id="manualHint"></div>
+      <div class="error-msg" id="manualErr"></div>
+      <button class="btn btn-primary" onclick="addManual()">手入力で追加</button>
+    </div>
   </div>
 
   <hr class="divider">
@@ -381,15 +412,24 @@ async function loadSpreadsheetDb() {
 // 起動時に読み込み
 loadSpreadsheetDb();
 
-// 検索
+// 検索（完全一致 > 前方一致 > 部分一致の順。同順位ならスプシDBを先に表示）
 function search(q){
   if(!q)return[];
   q=q.toLowerCase();
-  // 標準DB＋スプシDBを合わせて検索（スプシ側を優先で後ろに追加）
-  const allFoods=[...FOODS,...spreadsheetFoods];
-  return allFoods.filter(f=>
-    f.name.toLowerCase().includes(q)||(f.alias&&f.alias.some(a=>a.toLowerCase().includes(q)))
-  ).slice(0,8);
+  const all=[...FOODS.map(f=>({f,src:0})),...spreadsheetFoods.map(f=>({f,src:1}))];
+  const hits=[];
+  all.forEach((x,i)=>{
+    const name=x.f.name.toLowerCase();
+    const aliases=(x.f.alias||[]).map(a=>a.toLowerCase());
+    let rank;
+    if(name===q||aliases.includes(q))rank=0;
+    else if(name.startsWith(q)||aliases.some(a=>a.startsWith(q)))rank=1;
+    else if(name.includes(q)||aliases.some(a=>a.includes(q)))rank=2;
+    else return;
+    hits.push({f:x.f,rank,src:x.src,i});
+  });
+  hits.sort((a,b)=>a.rank-b.rank||b.src-a.src||a.i-b.i);
+  return hits.slice(0,10).map(h=>h.f);
 }
 
 const searchEl=document.getElementById('foodSearch');
@@ -398,6 +438,8 @@ const unitSel=document.getElementById('unitSelect');
 
 searchEl.addEventListener('input',()=>{
   clearErr('foodErr','foodSearch');
+  // 文字を編集したら、前に選んだ食品の選択と単位を解除する
+  if(selectedFood){selectedFood=null;resetUnits();}
   const results=search(searchEl.value.trim());
   if(!searchEl.value.trim()||!results.length){dropdownEl.style.display='none';selectedFood=null;return;}
   dropdownEl.innerHTML='';
@@ -414,18 +456,116 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('#foodSearch')&&!e.target.closest('#dropdown'))dropdownEl.style.display='none';
 });
 
-function updateUnits(f){
-  Array.from(unitSel.options).forEach(o=>{
-    o.disabled=(o.value!=='g'&&o.value!=='ml')&&!(f.units&&f.units[o.value]);
+// 単位プルダウンを基本（g / ml）に戻す
+function resetUnits(){
+  unitSel.innerHTML='';
+  unitSel.add(new Option('g','g'));
+  unitSel.add(new Option('ml','ml'));
+  unitSel.value='g';
+  document.getElementById('amountInput').value=100;
+}
+
+// ===== 手入力 =====
+let inputMode='db';
+function setInputMode(m){
+  inputMode=m;
+  document.getElementById('modeDb').classList.toggle('active',m==='db');
+  document.getElementById('modeManual').classList.toggle('active',m==='manual');
+  document.getElementById('dbMode').style.display=m==='db'?'':'none';
+  document.getElementById('dbAmount').style.display=m==='db'?'':'none';
+  document.getElementById('manualMode').style.display=m==='manual'?'':'none';
+  dropdownEl.style.display='none';
+}
+
+// 全角数字・全角ピリオドにも対応した数値変換
+function toNum(v){
+  const t=String(v==null?'':v)
+    .replace(/[０-９]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0))
+    .replace(/[．。]/g,'.').replace(/[，,]/g,'').trim();
+  if(t==='')return NaN;
+  return Number(t);
+}
+
+function readManual(){
+  return {
+    name:document.getElementById('mName').value.trim(),
+    k:toNum(document.getElementById('mKcal').value),
+    p:toNum(document.getElementById('mP').value),
+    f:toNum(document.getElementById('mF').value),
+    c:toNum(document.getElementById('mC').value)
+  };
+}
+
+// PFCから計算したkcalと入力kcalのずれを判定（P×4 + F×9 + C×4）
+function manualMismatch(d){
+  const est=Math.round(d.p*4+d.f*9+d.c*4);
+  const mismatch=Math.abs(d.k-est)>Math.max(50,est*0.25);
+  return {est,mismatch};
+}
+
+function updateManualHint(){
+  const hint=document.getElementById('manualHint');
+  document.getElementById('manualErr').classList.remove('show');
+  const d=readManual();
+  if([d.k,d.p,d.f,d.c].some(isNaN)){hint.textContent='';hint.className='manual-hint';return;}
+  const m=manualMismatch(d);
+  if(m.mismatch){
+    hint.className='manual-hint warn';
+    hint.textContent=`PFCから計算したkcalは約${m.est}kcalで、入力したkcal（${d.k}）と離れています。入力ミスがないか確認してください。`;
+  }else{
+    hint.className='manual-hint';
+    hint.textContent=`PFCから計算したkcal：約${m.est}kcal`;
+  }
+}
+
+function addManual(){
+  const errEl=document.getElementById('manualErr');
+  const fail=msg=>{errEl.textContent=msg;errEl.classList.add('show');};
+  errEl.classList.remove('show');
+  const d=readManual();
+  if(!d.name){fail('名前を入力してください');return;}
+  if(d.name.length>60){fail('名前は60文字以内にしてください');return;}
+  if(d.name.charAt(0)==='='){fail('名前の先頭に = は使えません');return;}
+  if([d.k,d.p,d.f,d.c].some(isNaN)){fail('kcal・P・F・Cをすべて入力してください（ない場合は0）');return;}
+  if([d.k,d.p,d.f,d.c].some(n=>n<0)){fail('負の値は入力できません');return;}
+  if(d.k>5000||d.p>500||d.f>500||d.c>1000){fail('数値が大きすぎます。単位や桁を確認してください');return;}
+  const m=manualMismatch(d);
+  if(m.mismatch&&!confirm(`PFCから計算したkcal（約${m.est}）と入力したkcal（${d.k}）が離れています。このまま追加しますか？`))return;
+
+  log.push({
+    id:Date.now(),
+    name:d.name,
+    amount:1,unit:'手入力',grams:null,manual:true,
+    meal:document.getElementById('mealSelect').value,
+    kcal:Math.round(d.k*10)/10,
+    p:Math.round(d.p*10)/10,
+    f:Math.round(d.f*10)/10,
+    c:Math.round(d.c*10)/10
   });
-  // unitsがある食品はその最初の単位をデフォルトに、量は1に
-  if(f.units){
-    const firstUnit=Object.keys(f.units)[0];
-    unitSel.value=firstUnit;
-    document.getElementById('amountInput').value=1;
+  ['mName','mKcal','mP','mF','mC'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('manualHint').textContent='';
+  render();
+  showToast(`${d.name}（手入力）を追加しました`,'success');
+}
+
+// 食品を選んだとき：g / ml に加え、その食品に登録された単位だけを選択肢に追加
+function updateUnits(f){
+  unitSel.innerHTML='';
+  unitSel.add(new Option('g','g'));
+  unitSel.add(new Option('ml','ml'));
+  const extra=f.units?Object.keys(f.units).filter(u=>u!=='g'&&u!=='ml'):[];
+  extra.forEach(u=>unitSel.add(new Option(u,u)));
+  const amountEl=document.getElementById('amountInput');
+  if(extra.length){
+    unitSel.value=extra[0];
+    amountEl.value=1;
+  } else if(f.units&&f.units.ml){
+    // 飲料など ml 指定の食品は ml を初期値に
+    unitSel.value='ml';
+    amountEl.value=100;
   } else {
     unitSel.value='g';
-    document.getElementById('amountInput').value=100;
+    amountEl.value=100;
   }
 }
 
@@ -463,6 +603,10 @@ function addFood(){
   if(!valid)return;
 
   const unit=unitSel.value;
+  // 単位が選んだ食品に登録されていない場合は、gとして扱わず入力をやり直させる
+  if(unit!=='g'&&unit!=='ml'&&!(selectedFood.units&&selectedFood.units[unit])){
+    showToast('単位が食品と一致しません。食品を選び直してください','error');return;
+  }
   const meal=document.getElementById('mealSelect').value;
   const grams=toGrams(selectedFood,amountVal,unit);
   const r=grams/100;
@@ -476,8 +620,7 @@ function addFood(){
     c:Math.round(selectedFood.per100.c*r*10)/10
   });
   searchEl.value='';selectedFood=null;
-  document.getElementById('amountInput').value=100;
-  unitSel.value='g';
+  resetUnits();
   clearErr('foodErr','foodSearch');
   render();
   showToast(`${log[log.length-1].name} を追加しました`,'success');
@@ -511,6 +654,12 @@ function renderSummary(){
   document.getElementById('sumC').textContent=(Math.round(log.reduce((s,e)=>s+e.c,0)*10)/10);
 }
 
+function amountText(e){
+  if(e.manual)return '手入力';
+  if(e.unit==='g'||e.unit==='ml')return `${e.amount}${e.unit}`;
+  return `${e.amount} ${e.unit}（${Math.round(e.grams*10)/10}g）`;
+}
+
 function renderList(){
   const list=document.getElementById('foodList');
   const items=filterMealType==='all'?log:log.filter(e=>e.meal===filterMealType);
@@ -519,7 +668,7 @@ function renderList(){
     <div class="food-item">
       <span class="food-meal-badge ${mealBadge[e.meal]}">${mealLabel[e.meal]}</span>
       <div class="food-info">
-        <div class="food-name">${e.name} <span class="food-amount">${e.amount}${e.unit}</span></div>
+        <div class="food-name">${e.name} <span class="food-amount">${e.manual?'':amountText(e)}</span>${e.manual?'<span class="manual-badge">手入力</span>':''}</div>
         <div class="food-detail">${e.kcal}kcal｜P${e.p}g F${e.f}g C${e.c}g</div>
       </div>
       <button class="del-btn" onclick="deleteFood(${e.id})" aria-label="削除">×</button>
